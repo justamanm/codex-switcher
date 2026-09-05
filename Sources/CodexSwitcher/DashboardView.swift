@@ -5,9 +5,20 @@ import SwiftUI
 struct DashboardView: View {
     @EnvironmentObject private var model: AppModel
     @State private var showingSettings = false
+    @State private var accountsWidth: CGFloat = 0
     private let accent = Color(red: 0.31, green: 0.57, blue: 0.39)
 
     var body: some View {
+        GeometryReader { proxy in
+            dashboardContent
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .onAppear { accountsWidth = proxy.size.width }
+                .onChange(of: proxy.size.width) { _, width in accountsWidth = width }
+        }
+        .frame(minWidth: 760, minHeight: 620)
+    }
+
+    private var dashboardContent: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 14) {
                 pageHeader
@@ -27,7 +38,6 @@ struct DashboardView: View {
                     .padding(.bottom, 36)
             }
         }
-        .frame(minWidth: 760, minHeight: 620)
         .background(Color(nsColor: .windowBackgroundColor))
         .tint(accent)
         .overlay(alignment: .top) {
@@ -122,27 +132,39 @@ struct DashboardView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.leading, 80)
 
-            Image(systemName: "arrow.right")
-                .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(accent)
-                .frame(width: 54)
+            if let account = model.recommendation {
+                VStack(spacing: 3) {
+                    Button { model.requestSwitch(to: account.name) } label: {
+                        Text("切换").frame(width: 44)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .disabled(model.isSwitching)
+
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(accent)
+                }
+                .frame(width: 76)
+                .layoutPriority(2)
+            } else {
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(accent)
+                    .frame(width: 76)
+            }
 
             if let account = model.recommendation {
-                HStack(spacing: 14) {
-                    overviewAccount(
-                        title: "下一个账号",
-                        name: model.displayName(for: account.name),
-                        identityHelp: model.identityHelp(for: account.name),
-                        account: account,
-                        systemImage: "leaf.fill"
-                    )
-                    Button("切换") { model.requestSwitch(to: account.name) }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
-                        .disabled(model.isSwitching)
-                }
+                overviewAccount(
+                    title: "下一个账号",
+                    name: model.displayName(for: account.name),
+                    identityHelp: model.identityHelp(for: account.name),
+                    account: account,
+                    systemImage: "leaf.fill"
+                )
                 .frame(maxWidth: .infinity, alignment: .trailing)
-                .padding(.trailing, 80)
+                .padding(.trailing, 32)
             } else {
                 VStack(alignment: .leading, spacing: 5) {
                     Text("下一个账号").font(.callout.weight(.semibold)).foregroundStyle(accent)
@@ -150,7 +172,7 @@ struct DashboardView: View {
                     Text("请刷新额度后重试").font(.callout).foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .trailing)
-                .padding(.trailing, 80)
+                .padding(.trailing, 32)
             }
         }
         .padding(.horizontal, 18)
@@ -173,17 +195,39 @@ struct DashboardView: View {
                 .frame(width: 38, height: 38)
                 .background(accent.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
             VStack(alignment: .leading, spacing: 4) {
-                Text(title).font(.callout.weight(.semibold)).foregroundStyle(accent)
-                HoverAccountName(name: name, identityHelp: identityHelp, font: .title3.bold())
-                if let account {
-                    Text("5 小时 \(account.fiveHourRemaining)% · 周额度 \(account.weeklyRemaining)%")
-                        .font(.callout).foregroundStyle(.secondary).lineLimit(1)
+                if accountsWidth > 0 && accountsWidth < 900 {
+                    Text(title).font(.callout.weight(.semibold)).foregroundStyle(accent)
+                    HoverAccountName(name: name, identityHelp: identityHelp, font: .title3.bold())
+                        .lineLimit(1)
+                        .layoutPriority(1)
+                    overviewUsage(account)
                 } else {
-                    Text("暂无额度信息").font(.callout).foregroundStyle(.secondary)
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        HoverAccountName(name: name, identityHelp: identityHelp, font: .title3.bold())
+                            .lineLimit(1)
+                            .layoutPriority(1)
+                        Text(title)
+                            .font(.callout.weight(.semibold))
+                            .foregroundStyle(accent)
+                    }
+                    overviewUsage(account)
                 }
             }
         }
-        .fixedSize(horizontal: true, vertical: false)
+        .frame(minWidth: 0)
+    }
+
+    private func overviewUsage(_ account: AccountUsage?) -> some View {
+        Group {
+            if let account {
+                Text("5 小时 \(account.fiveHourRemaining)% · 周额度 \(account.weeklyRemaining)%")
+            } else {
+                Text("暂无额度信息")
+            }
+        }
+        .font(.callout)
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
     }
 
     private var accountsSection: some View {
@@ -191,6 +235,12 @@ struct DashboardView: View {
             HStack(alignment: .firstTextBaseline) {
                 Text("所有账号").font(.title3.bold())
                 Text("\(model.accounts.count) 个").font(.callout).foregroundStyle(.secondary)
+                Spacer()
+                if let latestUpdate {
+                    Label("额度更新于 \(latestUpdate)", systemImage: "clock")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
             }
             LazyVStack(spacing: 10) {
                 ForEach(model.rankedAccounts) { account in
@@ -200,6 +250,7 @@ struct DashboardView: View {
                         identityHelp: model.identityHelp(for: account.name),
                         isCurrent: model.currentType == "account" && model.currentName == account.name,
                         isRecommended: model.recommendation?.name == account.name,
+                        usesCompactLayout: accountsWidth > 0 && accountsWidth < 900,
                         isRefreshing: model.refreshingAccounts.contains(account.name),
                         isSwitching: model.isSwitching,
                         refreshAction: { model.refresh(account: account.name) },
@@ -210,6 +261,14 @@ struct DashboardView: View {
                 }
             }
         }
+    }
+
+    private var latestUpdate: String? {
+        let formatter = ISO8601DateFormatter()
+        guard let date = model.accounts.compactMap({ formatter.date(from: $0.notedAt) }).max() else {
+            return nil
+        }
+        return date.formatted(date: .abbreviated, time: .shortened)
     }
 
     private var settingsSheet: some View {
@@ -315,6 +374,7 @@ private struct AccountDashboardRow: View {
     let identityHelp: String
     let isCurrent: Bool
     let isRecommended: Bool
+    let usesCompactLayout: Bool
     let isRefreshing: Bool
     let isSwitching: Bool
     let refreshAction: () -> Void
@@ -323,29 +383,15 @@ private struct AccountDashboardRow: View {
     let removeAction: () -> Void
 
     var body: some View {
-        HStack(spacing: 14) {
-            HoverAccountName(name: displayName, identityHelp: identityHelp, font: .title3.bold())
-                .lineLimit(1)
-                .frame(minWidth: 120, maxWidth: 210, alignment: .leading)
-            if isCurrent { badge("当前", color: .green) }
-            if isRecommended { badge("推荐", color: accent) }
-            Text("更新于 \(formattedTimestamp(account.notedAt))")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-            Divider().frame(height: 28)
-            HorizontalQuota(title: "5 小时", value: account.fiveHourRemaining, reset: account.fiveHourReset)
-            Divider().frame(height: 28)
-            HorizontalQuota(title: "周额度", value: account.weeklyRemaining, reset: account.weeklyReset)
-            Divider().frame(height: 28)
-            Text("重置卡 \(account.resetCards) 张")
-                .font(.callout.weight(.semibold))
-                .lineLimit(1)
-            Spacer(minLength: 4)
-            accountActions
+        Group {
+            if usesCompactLayout {
+                compactLayout
+            } else {
+                wideLayout
+            }
         }
-        .padding(.horizontal, 15)
-        .padding(.vertical, 8)
+        .padding(.horizontal, usesCompactLayout ? 24 : 15)
+        .padding(.vertical, usesCompactLayout ? 5 : 9)
         .frame(maxWidth: .infinity)
         .background(.background, in: RoundedRectangle(cornerRadius: 12))
         .overlay(
@@ -354,19 +400,108 @@ private struct AccountDashboardRow: View {
         )
     }
 
+    private var wideLayout: some View {
+        GeometryReader { geometry in
+            let quotaAreaWidth = max(350, geometry.size.width - 393)
+            let extraWidth = max(0, quotaAreaWidth - 350)
+            let fiveHourWidth = 175 + extraWidth * 0.6
+            let weeklyWidth = 175 + extraWidth * 0.4
+            let sharedBarWidth = max(40, weeklyWidth - 150)
+            HStack(spacing: 12) {
+                accountIdentity
+                    .frame(width: 115, alignment: .leading)
+                Divider().frame(height: 28)
+                QuotaBar(
+                    title: "5 小时",
+                    value: account.fiveHourRemaining,
+                    reset: account.fiveHourReset,
+                    barWidth: sharedBarWidth
+                )
+                    .frame(width: fiveHourWidth)
+                Divider().frame(height: 28)
+                QuotaBar(
+                    title: "周额度",
+                    value: account.weeklyRemaining,
+                    reset: account.weeklyReset,
+                    barWidth: sharedBarWidth
+                )
+                    .frame(width: weeklyWidth)
+                Divider().frame(height: 28)
+                Text("重置卡 \(account.resetCards) 张")
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .frame(width: 68, alignment: .leading)
+                Divider().frame(height: 28)
+                accountActions
+                    .frame(width: 110, alignment: .trailing)
+            }
+        }
+        .frame(height: 28)
+    }
+
+    private var compactLayout: some View {
+        VStack(spacing: 4) {
+            HStack(spacing: 12) {
+                accountIdentity
+                Spacer(minLength: 8)
+                accountActions
+            }
+            Divider().opacity(0.55)
+            GeometryReader { geometry in
+                let quotaAreaWidth = max(0, geometry.size.width - 130)
+                let sharedBarWidth = max(40, min(80, quotaAreaWidth / 2 - 175))
+                HStack(spacing: 12) {
+                    QuotaBar(
+                        title: "5 小时",
+                        value: account.fiveHourRemaining,
+                        reset: account.fiveHourReset,
+                        barWidth: sharedBarWidth
+                    )
+                    .frame(width: quotaAreaWidth / 2 + 24)
+                    Divider().frame(height: 24)
+                    QuotaBar(
+                        title: "周额度",
+                        value: account.weeklyRemaining,
+                        reset: account.weeklyReset,
+                        barWidth: sharedBarWidth
+                    )
+                    .frame(width: quotaAreaWidth / 2 - 24)
+                    Divider().frame(height: 24)
+                    resetCards
+                }
+            }
+            .frame(height: 24)
+        }
+    }
+
+    private var accountIdentity: some View {
+        HoverAccountName(name: displayName, identityHelp: identityHelp, font: .headline)
+            .foregroundStyle(accountNameColor)
+            .lineLimit(1)
+    }
+
+    private var resetCards: some View {
+        Text("重置卡 \(account.resetCards) 张")
+            .font(.callout.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .frame(width: 80, alignment: .leading)
+    }
+
     private var accountActions: some View {
-        HStack(spacing: 8) {
-            HStack(spacing: 2) {
+        HStack(spacing: 6) {
+            HStack(spacing: 0) {
                 Button { refreshAction() } label: {
                     ZStack {
                         if isRefreshing {
                             ProgressView().controlSize(.small)
                         } else {
                             Image(systemName: "arrow.clockwise.circle")
-                                .font(.system(size: 20, weight: .light))
+                                .font(.system(size: 15, weight: .light))
                         }
                     }
-                    .frame(width: 32, height: 30)
+                    .frame(width: 23, height: 26)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -376,8 +511,8 @@ private struct AccountDashboardRow: View {
 
                 Button { showingActions.toggle() } label: {
                     Image(systemName: "ellipsis.circle")
-                        .font(.system(size: 20, weight: .light))
-                        .frame(width: 32, height: 30)
+                        .font(.system(size: 15, weight: .light))
+                        .frame(width: 23, height: 26)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -420,52 +555,67 @@ private struct AccountDashboardRow: View {
                 }
             }
             if isRecommended {
-                Button("切换") { switchAction() }
+                Button { switchAction() } label: {
+                    Text("切换").frame(width: 44)
+                }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.regular)
+                    .fixedSize(horizontal: true, vertical: false)
                     .disabled(isSwitching)
             } else {
-                Button(isCurrent ? "正在使用" : "切换") { switchAction() }
+                Button { switchAction() } label: {
+                    Text(isCurrent ? "使用" : "切换").frame(width: 44)
+                }
                     .buttonStyle(.bordered)
                     .controlSize(.regular)
+                    .fixedSize(horizontal: true, vertical: false)
                     .disabled(isCurrent || isSwitching)
             }
         }
     }
 
-    private func badge(_ title: String, color: Color) -> some View {
-        Text(title).font(.caption2.weight(.semibold)).foregroundStyle(color)
-            .padding(.horizontal, 7).padding(.vertical, 3)
-            .background(color.opacity(0.1), in: Capsule())
+    private var accountNameColor: Color {
+        if isCurrent { return .primary }
+        if isRecommended { return accent }
+        return .primary
     }
 
-    private func formattedTimestamp(_ value: String) -> String {
-        let formatter = ISO8601DateFormatter()
-        guard let date = formatter.date(from: value) else { return value }
-        return date.formatted(date: .abbreviated, time: .shortened)
-    }
 }
 
-private struct HorizontalQuota: View {
+private struct QuotaBar: View {
     let title: String
     let value: Int
     let reset: String
+    var barWidth: CGFloat? = nil
 
     private let accentDark = Color(red: 0.12, green: 0.30, blue: 0.18)
     private var color: Color { value == 0 ? .red : accentDark }
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 5) {
-            Text(title).font(.callout.weight(.semibold)).foregroundStyle(.secondary)
+        HStack(spacing: 8) {
+            Text(title)
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 40, alignment: .leading)
             Text("\(value)%")
-                .font(.title3.bold())
+                .font(.callout.bold())
                 .foregroundStyle(color)
-            Text("重置 \(reset)")
-                .font(.callout)
+                .frame(width: 35, alignment: .trailing)
+            ProgressView(value: Double(value), total: 100)
+                .tint(color)
+                .frame(width: barWidth)
+                .frame(minWidth: barWidth == nil ? 40 : nil, maxWidth: barWidth == nil ? .infinity : nil)
+            Text("重置 \(compactReset)")
+                .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+                .frame(minWidth: 0, maxWidth: 88, alignment: .leading)
         }
-        .fixedSize(horizontal: true, vertical: false)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var compactReset: String {
+        reset.count >= 16 ? String(reset.dropFirst(5)) : reset
     }
 }
 
