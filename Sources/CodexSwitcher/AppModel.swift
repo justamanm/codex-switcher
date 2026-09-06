@@ -16,7 +16,7 @@ final class AppModel: ObservableObject {
     @Published var selectedAccount: String?
     @Published var isRefreshing = false
     @Published var isSwitching = false
-    @Published var status = "准备就绪"
+    @Published var status = ""
     @Published var lastError: String?
     @Published var showingSwitchConfirmation = false
     @Published var pendingSwitchAccount: String?
@@ -24,7 +24,7 @@ final class AppModel: ObservableObject {
     @Published var aliases: [String: String] = [:]
     @Published var refreshingAccounts: Set<String> = []
     @Published var showingAddAccount = false
-    @Published var addAccountStage = "准备添加新账号"
+    @Published var addAccountStage = ""
     @Published var isWaitingForLogin = false
     @Published var isAddingAccount = false
     @Published var isCancellingLogin = false
@@ -32,6 +32,9 @@ final class AppModel: ObservableObject {
     @Published var editingAccount: String?
     @Published var editingAlias = ""
     @Published var removingAccount: String?
+    @Published var appLanguage: AppLanguage {
+        didSet { UserDefaults.standard.set(appLanguage.rawValue, forKey: "appLanguage") }
+    }
     @AppStorage("refreshIntervalValue") var refreshIntervalValue = 1
     @AppStorage("refreshIntervalUnit") var refreshIntervalUnit = "minutes"
     @AppStorage("automaticRefresh") var automaticRefresh = false
@@ -50,6 +53,17 @@ final class AppModel: ObservableObject {
         case none
         case notice(String)
         case error(String)
+    }
+
+    init() {
+        let stored = UserDefaults.standard.string(forKey: "appLanguage")
+        appLanguage = AppLanguage(rawValue: stored ?? "") ?? .system
+        status = AppLocalization.text("准备就绪", language: appLanguage)
+        addAccountStage = AppLocalization.text("准备添加新账号", language: appLanguage)
+    }
+
+    func text(_ key: String, _ arguments: CVarArg...) -> String {
+        AppLocalization.text(key, language: appLanguage, arguments)
     }
 
     var recommendation: AccountUsage? {
@@ -90,11 +104,11 @@ final class AppModel: ObservableObject {
             case .none:
                 return .none
             case .restoredOriginal:
-                return .notice("已恢复上次未完成的新增账号")
+                return .notice(text("已恢复上次未完成的新增账号"))
             case .needsRegistration(let originalAccount):
                 let active = codexDirectory.appendingPathComponent("auth.json")
                 guard let activeIdentity = identity(from: active) else {
-                    return .error("发现未完成的新增账号，但无法识别当前账号；现有凭据未修改。")
+                    return .error(text("发现未完成的新增账号，但无法识别当前账号；现有凭据未修改。"))
                 }
                 let archived = codexDirectory.appendingPathComponent("auth.json.\(originalAccount)")
                 let registeredName: String
@@ -104,10 +118,10 @@ final class AppModel: ObservableObject {
                     registeredName = availableInternalName(for: activeIdentity)
                 }
                 try AccountLoginSession.finishPending(directory: codexDirectory, account: registeredName)
-                return .notice("已完成上次中断的新增账号")
+                return .notice(text("已完成上次中断的新增账号"))
             }
         } catch {
-            return .error("无法恢复上次未完成的新增账号：\(error.localizedDescription)")
+            return .error(text("无法恢复上次未完成的新增账号：%@", error.localizedDescription))
         }
     }
 
@@ -125,7 +139,7 @@ final class AppModel: ObservableObject {
                 currentType = "account"
                 currentName = recovered
                 try Data("account \(recovered)\n".utf8).write(to: marker, options: .atomic)
-                status = "已恢复当前账号识别"
+                status = text("已恢复当前账号识别")
             } else {
                 currentType = ""
                 currentName = ""
@@ -139,12 +153,12 @@ final class AppModel: ObservableObject {
             migrateLegacyAutomaticAliasesIfNeeded()
             if selectedAccount == nil { selectedAccount = recommendation?.name ?? accounts.first?.name }
             configureResetRefreshes()
-            if status != "已恢复当前账号识别" {
-                status = "已载入 \(accounts.count) 个账号"
+            if status != text("已恢复当前账号识别") {
+                status = text("已载入 %d 个账号", accounts.count)
             }
             lastError = nil
         } catch {
-            lastError = "无法读取账号数据：\(error.localizedDescription)"
+            lastError = text("无法读取账号数据：%@", error.localizedDescription)
         }
     }
 
@@ -152,17 +166,17 @@ final class AppModel: ObservableObject {
         guard !isAddingAccount, !isSwitching else { return }
         guard !isRefreshing else { return }
         isRefreshing = true
-        status = "正在查询账号限额…"
+        status = text("正在查询账号限额…")
         lastError = nil
         Task {
             let result = await runScript(["refresh"])
             isRefreshing = false
             loadFromDisk()
             if result.code == 0 {
-                status = result.output.isEmpty ? "刷新完成" : result.output
+                status = result.output.isEmpty ? text("刷新完成") : result.output
             } else {
                 lastError = result.output
-                status = "刷新未完全成功"
+                status = text("刷新未完全成功")
             }
             configureAutomaticRefresh()
         }
@@ -178,10 +192,10 @@ final class AppModel: ObservableObject {
             refreshingAccounts.remove(account)
             loadFromDisk()
             if result.code == 0 {
-                status = "已刷新 \(displayName(for: account))"
+                status = text("已刷新 %@", displayName(for: account))
             } else {
                 lastError = result.output
-                status = "账号查询失败"
+                status = text("账号查询失败")
             }
         }
     }
@@ -197,8 +211,8 @@ final class AppModel: ObservableObject {
     }
 
     func identityHelp(for account: String) -> String {
-        guard let identity = identities[account] else { return "账号文件名：\(account)" }
-        return "原用户名：\(identity.originalName)\n邮箱：\(identity.email)"
+        guard let identity = identities[account] else { return text("账号文件名：%@", account) }
+        return text("原用户名：%@\n邮箱：%@", identity.originalName, identity.email)
     }
 
     func beginEditingAlias(_ account: String) {
@@ -216,15 +230,15 @@ final class AppModel: ObservableObject {
 
     func prepareAddAccount() {
         guard !isAddingAccount, !isSwitching, !isRefreshing, refreshingAccounts.isEmpty, pendingSwitchAccount == nil else {
-            showNotice("请等待当前操作完成。")
+            showNotice(text("请等待当前操作完成。"))
             return
         }
         guard currentType == "account", !currentName.isEmpty else {
-            lastError = "添加账号前必须先切换到一个普通账号。"
+            lastError = text("添加账号前必须先切换到一个普通账号。")
             return
         }
         lastError = nil
-        addAccountStage = "请先保存工作并退出所有正在运行的 Codex CLI。继续后，请在 ChatGPT 中登录新账号。"
+        addAccountStage = text("请先保存工作并退出所有正在运行的 Codex CLI。继续后，请在 ChatGPT 中登录新账号。")
         showingAddAccount = true
     }
 
@@ -236,14 +250,14 @@ final class AppModel: ObservableObject {
         lastError = nil
         automaticTask?.cancel()
         resetRefreshTasks.values.forEach { $0.cancel() }
-        addAccountStage = "正在关闭 ChatGPT…"
+        addAccountStage = text("正在关闭 ChatGPT…")
         loginWatchTask = Task { [weak self] in
             guard let self else { return }
             do {
                 try await closeChatGPT()
                 try Task.checkCancellation()
                 loginSession = try AccountLoginSession(directory: codexDirectory, account: archivedName)
-                addAccountStage = "请在 ChatGPT 中登录新账号。登录数据只保存在本机；本应用不会上传或展示登录凭据。"
+                addAccountStage = text("请在 ChatGPT 中登录新账号。登录数据只保存在本机；本应用不会上传或展示登录凭据。")
                 isWaitingForLogin = true
                 try await NSWorkspace.shared.openApplication(at: chatGPTURL, configuration: NSWorkspace.OpenConfiguration())
                 try Task.checkCancellation()
@@ -260,11 +274,11 @@ final class AppModel: ObservableObject {
         guard !isCancellingLogin else { return }
         guard isAddingAccount else {
             showingAddAccount = false
-            showNotice("已取消添加账号")
+            showNotice(text("已取消添加账号"))
             return
         }
         isCancellingLogin = true
-        addAccountStage = "正在关闭登录窗口并恢复原账号…"
+        addAccountStage = text("正在关闭登录窗口并恢复原账号…")
         let previousTask = loginWatchTask
         previousTask?.cancel()
         Task {
@@ -285,7 +299,7 @@ final class AppModel: ObservableObject {
             try await Task.sleep(for: .milliseconds(200))
         }
         throw NSError(domain: "CodexSwitcher", code: 1, userInfo: [
-            NSLocalizedDescriptionKey: "ChatGPT 未能关闭，请手动关闭后重试。账号文件未修改。"
+            NSLocalizedDescriptionKey: text("ChatGPT 未能关闭，请手动关闭后重试。账号文件未修改。")
         ])
     }
 
@@ -302,14 +316,14 @@ final class AppModel: ObservableObject {
             loadFromDisk()
             configureAutomaticRefresh()
             if let failure {
-                lastError = "添加失败，原账号已保留：\(failure)"
+                lastError = text("添加失败，原账号已保留：%@", failure)
             } else {
                 lastError = nil
-                showNotice("已取消添加账号")
+                showNotice(text("已取消添加账号"))
             }
         } catch {
             // 保留恢复对象和备份，允许用户退出登录应用后再次取消。
-            addAccountStage = "恢复未完成：\(error.localizedDescription)"
+            addAccountStage = text("恢复未完成：%@", error.localizedDescription)
             lastError = addAccountStage
         }
     }
@@ -327,7 +341,7 @@ final class AppModel: ObservableObject {
     func requestRemove(_ account: String) {
         guard !isAddingAccount else { return }
         if currentType == "account" && currentName == account {
-            lastError = "当前正在使用的账号不能移除，请先切换到其他账号。"
+            lastError = text("当前正在使用的账号不能移除，请先切换到其他账号。")
             return
         }
         removingAccount = account
@@ -344,9 +358,9 @@ final class AppModel: ObservableObject {
             saveAliases()
             removingAccount = nil
             loadFromDisk()
-            status = "已将 \(account) 的凭据移到废纸篓"
+            status = text("已将 %@ 的凭据移到废纸篓", account)
         } catch {
-            lastError = "移除失败：\(error.localizedDescription)"
+            lastError = text("移除失败：%@", error.localizedDescription)
             removingAccount = nil
         }
     }
@@ -362,31 +376,31 @@ final class AppModel: ObservableObject {
         guard let account = pendingSwitchAccount else { return }
         showingSwitchConfirmation = false
         isSwitching = true
-        status = "正在关闭 ChatGPT…"
+        status = text("正在关闭 ChatGPT…")
         Task {
             do {
                 try await closeChatGPT()
-                status = "正在切换到 \(account)…"
+                status = text("正在切换到 %@…", account)
                 let result = await runScript(["switch", account])
                 loadFromDisk()
                 guard result.code == 0 else {
                     lastError = result.output
-                    status = "切换失败"
+                    status = text("切换失败")
                     isSwitching = false
                     pendingSwitchAccount = nil
                     return
                 }
                 do {
                     try await NSWorkspace.shared.openApplication(at: chatGPTURL, configuration: NSWorkspace.OpenConfiguration())
-                    status = "已切换到 \(account)，已打开 ChatGPT"
-                    showNotice("账号已切换")
+                    status = text("已切换到 %@，已打开 ChatGPT", account)
+                    showNotice(text("账号已切换"))
                 } catch {
-                    status = "账号已切换"
-                    lastError = "已切换账号，但无法打开 ChatGPT：\(error.localizedDescription)"
+                    status = text("账号已切换")
+                    lastError = text("已切换账号，但无法打开 ChatGPT：%@", error.localizedDescription)
                 }
             } catch {
                 lastError = error.localizedDescription
-                status = "切换未开始"
+                status = text("切换未开始")
             }
             isSwitching = false
             pendingSwitchAccount = nil
@@ -455,7 +469,7 @@ final class AppModel: ObservableObject {
                     .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                 return (process.terminationStatus, text)
             } catch {
-                return (1, "无法运行切换脚本：\(error.localizedDescription)")
+                return (1, await MainActor.run { self.text("无法运行切换脚本：%@", error.localizedDescription) })
             }
         }.value
     }
@@ -474,7 +488,7 @@ final class AppModel: ObservableObject {
                 showingAddAccount = false
                 loadFromDisk()
                 configureAutomaticRefresh()
-                showNotice("已添加 \(displayName(for: internalName))")
+                showNotice(text("已添加 %@", displayName(for: internalName)))
                 refresh(account: internalName)
                 return
             }

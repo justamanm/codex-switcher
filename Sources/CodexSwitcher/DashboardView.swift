@@ -52,26 +52,26 @@ struct DashboardView: View {
             }
         }
         .confirmationDialog(
-            "切换账号",
+            model.text("切换账号"),
             isPresented: $model.showingSwitchConfirmation,
             titleVisibility: .visible
         ) {
-            Button("切换到 \(model.pendingSwitchAccount ?? "")") { model.confirmSwitch() }
-            Button("取消", role: .cancel) { model.pendingSwitchAccount = nil }
+            Button(model.text("切换到 %@", model.pendingSwitchAccount ?? "")) { model.confirmSwitch() }
+            Button(model.text("取消"), role: .cancel) { model.pendingSwitchAccount = nil }
         } message: {
-            Text("请先保存 ChatGPT 中的内容。确认后会关闭 ChatGPT，切换账号，再自动重新打开 ChatGPT。")
+            Text(model.text("请先保存 ChatGPT 中的内容。确认后会关闭 ChatGPT，切换账号，再自动重新打开 ChatGPT。"))
         }
         .alert(
-            "移除账号",
+            model.text("移除账号"),
             isPresented: Binding(
                 get: { model.removingAccount != nil },
                 set: { if !$0 { model.removingAccount = nil } }
             )
         ) {
-            Button("移到废纸篓", role: .destructive) { model.confirmRemove() }
-            Button("取消", role: .cancel) { model.removingAccount = nil }
+            Button(model.text("移到废纸篓"), role: .destructive) { model.confirmRemove() }
+            Button(model.text("取消"), role: .cancel) { model.removingAccount = nil }
         } message: {
-            Text("账号凭据将移到废纸篓，可以恢复；不会永久删除。")
+            Text(model.text("账号凭据将移到废纸篓，可以恢复；不会永久删除。"))
         }
         .sheet(isPresented: $model.showingAddAccount) {
             addAccountSheet.interactiveDismissDisabled(model.isAddingAccount)
@@ -98,20 +98,20 @@ struct DashboardView: View {
             .foregroundStyle(accent)
             .frame(width: 32, height: 32)
             .contentShape(Rectangle())
-            .help("打开设置")
+            .help(model.text("打开设置"))
             HStack(spacing: 7) {
                 Circle().fill(model.lastError == nil ? .green : .orange).frame(width: 8, height: 8)
-                Text("已载入 \(model.accounts.count) 个账号").foregroundStyle(.secondary)
+                Text(model.text("已载入 %d 个账号", model.accounts.count)).foregroundStyle(.secondary)
             }
             .font(.callout)
             Spacer()
             Button { model.prepareAddAccount() } label: {
-                Label("增加账号", systemImage: "person.badge.plus")
+                Label(model.text("增加账号"), systemImage: "person.badge.plus")
             }
             .controlSize(.large)
             .disabled(model.isSwitching)
             Button { model.refresh() } label: {
-                Label(model.isRefreshing ? "正在刷新" : "刷新", systemImage: "arrow.clockwise")
+                Label(model.text(model.isRefreshing ? "正在刷新" : "刷新"), systemImage: "arrow.clockwise")
                     .frame(minWidth: 62)
             }
             .buttonStyle(.borderedProminent)
@@ -123,8 +123,8 @@ struct DashboardView: View {
     private var accountOverview: some View {
         HStack(spacing: 0) {
             overviewAccount(
-                title: "当前使用",
-                name: model.currentName.isEmpty ? "未识别" : model.displayName(for: model.currentName),
+                title: model.text("当前使用"),
+                name: model.currentName.isEmpty ? model.text("未识别") : model.displayName(for: model.currentName),
                 identityHelp: model.identityHelp(for: model.currentName),
                 account: model.accounts.first { $0.name == model.currentName },
                 systemImage: model.currentType == "hub" ? "network" : "person.crop.circle.fill"
@@ -135,7 +135,7 @@ struct DashboardView: View {
             if let account = model.recommendation {
                 VStack(spacing: 3) {
                     Button { model.requestSwitch(to: account.name) } label: {
-                        Text("切换").frame(width: 44)
+                        Text(model.text("切换")).frame(width: 44)
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
@@ -157,7 +157,7 @@ struct DashboardView: View {
 
             if let account = model.recommendation {
                 overviewAccount(
-                    title: "下一个账号",
+                    title: model.text("下一个账号"),
                     name: model.displayName(for: account.name),
                     identityHelp: model.identityHelp(for: account.name),
                     account: account,
@@ -167,9 +167,9 @@ struct DashboardView: View {
                 .padding(.trailing, 32)
             } else {
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("下一个账号").font(.callout.weight(.semibold)).foregroundStyle(accent)
-                    Text("暂无可用账号").font(.title3.bold())
-                    Text("请刷新额度后重试").font(.callout).foregroundStyle(.secondary)
+                    Text(model.text("下一个账号")).font(.callout.weight(.semibold)).foregroundStyle(accent)
+                    Text(model.text("暂无可用账号")).font(.title3.bold())
+                    Text(model.text("请刷新额度后重试")).font(.callout).foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .trailing)
                 .padding(.trailing, 32)
@@ -220,9 +220,9 @@ struct DashboardView: View {
     private func overviewUsage(_ account: AccountUsage?) -> some View {
         Group {
             if let account {
-                Text("5 小时 \(account.fiveHourRemaining)% · 周额度 \(account.weeklyRemaining)%")
+                Text(model.text("5 小时 %d%% · 周额度 %d%%", account.fiveHourRemaining, account.weeklyRemaining))
             } else {
-                Text("暂无额度信息")
+                Text(model.text("暂无额度信息"))
             }
         }
         .font(.callout)
@@ -233,11 +233,11 @@ struct DashboardView: View {
     private var accountsSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .firstTextBaseline) {
-                Text("所有账号").font(.title3.bold())
-                Text("\(model.accounts.count) 个").font(.callout).foregroundStyle(.secondary)
+                Text(model.text("所有账号")).font(.title3.bold())
+                Text(model.text("%d 个", model.accounts.count)).font(.callout).foregroundStyle(.secondary)
                 Spacer()
                 if let latestUpdate {
-                    Label("额度更新于 \(latestUpdate)", systemImage: "clock")
+                    Label(model.text("额度更新于 %@", latestUpdate), systemImage: "clock")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
@@ -268,41 +268,55 @@ struct DashboardView: View {
         guard let date = model.accounts.compactMap({ formatter.date(from: $0.notedAt) }).max() else {
             return nil
         }
-        return date.formatted(date: .abbreviated, time: .shortened)
+        return date.formatted(
+            .dateTime
+                .year().month(.abbreviated).day()
+                .hour().minute()
+                .locale(model.appLanguage.locale)
+        )
     }
 
     private var settingsSheet: some View {
         VStack(alignment: .leading, spacing: 15) {
             HStack {
-                Label("设置", systemImage: "gearshape.fill").font(.title2.bold())
+                Label(model.text("设置"), systemImage: "gearshape.fill").font(.title2.bold())
                 Spacer()
-                Button("完成") { showingSettings = false }.keyboardShortcut(.defaultAction)
+                Button(model.text("完成")) { showingSettings = false }.keyboardShortcut(.defaultAction)
             }
             Divider()
-            Label("自动查询", systemImage: "clock.arrow.circlepath").font(.headline)
+            Label(model.text("语言"), systemImage: "globe").font(.headline)
+            Picker(model.text("语言"), selection: $model.appLanguage) {
+                Text(model.text("跟随系统")).tag(AppLanguage.system)
+                Text("中文").tag(AppLanguage.chinese)
+                Text("English").tag(AppLanguage.english)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            Divider()
+            Label(model.text("自动查询"), systemImage: "clock.arrow.circlepath").font(.headline)
             HStack(spacing: 22) {
-                Toggle("启用自动刷新", isOn: $model.automaticRefresh)
+                Toggle(model.text("启用自动刷新"), isOn: $model.automaticRefresh)
                     .toggleStyle(.switch)
                     .onChange(of: model.automaticRefresh) { _, _ in model.configureAutomaticRefresh() }
                 Spacer()
-                Text("查询间隔").foregroundStyle(.secondary)
-                TextField("间隔", value: $model.refreshIntervalValue, format: .number)
+                Text(model.text("查询间隔")).foregroundStyle(.secondary)
+                TextField(model.text("间隔"), value: $model.refreshIntervalValue, format: .number)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 76)
                     .onChange(of: model.refreshIntervalValue) { _, value in
                         if value < 1 { model.refreshIntervalValue = 1 }
                         model.configureAutomaticRefresh()
                     }
-                Picker("时间单位", selection: $model.refreshIntervalUnit) {
-                    Text("秒").tag("seconds")
-                    Text("分钟").tag("minutes")
+                Picker(model.text("时间单位"), selection: $model.refreshIntervalUnit) {
+                    Text(model.text("秒")).tag("seconds")
+                    Text(model.text("分钟")).tag("minutes")
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
                 .frame(width: 120)
                 .onChange(of: model.refreshIntervalUnit) { _, _ in model.configureAutomaticRefresh() }
             }
-            Text("自动查询默认每 1 分钟执行；可自定义秒或分钟。全量查询时账号之间间隔 1 秒，单账号查询立即执行。")
+            Text(model.text("自动查询默认每 1 分钟执行；可自定义秒或分钟。全量查询时账号之间间隔 1 秒，单账号查询立即执行。"))
                 .font(.caption).foregroundStyle(.secondary)
         }
         .padding(24)
@@ -320,28 +334,28 @@ struct DashboardView: View {
         VStack(alignment: .leading, spacing: 18) {
             Image(systemName: model.isWaitingForLogin ? "person.crop.circle.badge.clock" : "person.badge.plus")
                 .font(.system(size: 40)).foregroundStyle(accent)
-            Text(model.isWaitingForLogin ? "等待新账号登录" : "增加 Codex 账号")
+            Text(model.text(model.isWaitingForLogin ? "等待新账号登录" : "增加 Codex 账号"))
                 .font(.title2.bold())
             Text(model.addAccountStage).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             if model.isWaitingForLogin {
                 ProgressView().controlSize(.large)
-                Text("取消后会关闭 ChatGPT 应用。")
+                Text(model.text("取消后会关闭 ChatGPT 应用。"))
                     .font(.caption).foregroundStyle(.secondary)
             } else {
                 VStack(alignment: .leading, spacing: 8) {
-                    Label("先保存并退出所有正在运行的 Codex CLI", systemImage: "terminal")
-                    Label("继续后会关闭 ChatGPT 并保存当前账号", systemImage: "arrow.down.doc")
-                    Label("重新登录后会自动识别用户名和邮箱", systemImage: "person.text.rectangle")
+                    Label(model.text("先保存并退出所有正在运行的 Codex CLI"), systemImage: "terminal")
+                    Label(model.text("继续后会关闭 ChatGPT 并保存当前账号"), systemImage: "arrow.down.doc")
+                    Label(model.text("重新登录后会自动识别用户名和邮箱"), systemImage: "person.text.rectangle")
                 }
                 .font(.callout)
             }
             HStack {
                 Spacer()
-                Button(model.isCancellingLogin ? "正在恢复…" : "取消") { model.cancelLoginWatch() }
+                Button(model.text(model.isCancellingLogin ? "正在恢复…" : "取消")) { model.cancelLoginWatch() }
                     .disabled(model.isCancellingLogin)
                     .keyboardShortcut(.cancelAction)
                 if !model.isAddingAccount {
-                    Button("退出 ChatGPT 并继续") { model.startAddAccount() }
+                    Button(model.text("退出 ChatGPT 并继续")) { model.startAddAccount() }
                         .buttonStyle(.borderedProminent)
                 }
             }
@@ -351,15 +365,15 @@ struct DashboardView: View {
 
     private var aliasSheet: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("设置账号别名").font(.title2.bold())
-            Text("界面只显示别名；鼠标停留在别名上仍可查看原用户名和邮箱。")
+            Text(model.text("设置账号别名")).font(.title2.bold())
+            Text(model.text("界面只显示别名；鼠标停留在别名上仍可查看原用户名和邮箱。"))
                 .foregroundStyle(.secondary)
-            TextField("别名", text: $model.editingAlias)
+            TextField(model.text("别名"), text: $model.editingAlias)
                 .textFieldStyle(.roundedBorder)
             HStack {
                 Spacer()
-                Button("取消") { model.editingAccount = nil }
-                Button("保存") { model.saveAlias() }.buttonStyle(.borderedProminent)
+                Button(model.text("取消")) { model.editingAccount = nil }
+                Button(model.text("保存")) { model.saveAlias() }.buttonStyle(.borderedProminent)
             }
         }
         .padding(24).frame(width: 420)
@@ -367,6 +381,7 @@ struct DashboardView: View {
 }
 
 private struct AccountDashboardRow: View {
+    @EnvironmentObject private var model: AppModel
     @State private var showingActions = false
     private let accent = Color(red: 0.31, green: 0.57, blue: 0.39)
     let account: AccountUsage
@@ -412,7 +427,7 @@ private struct AccountDashboardRow: View {
                     .frame(width: 115, alignment: .leading)
                 Divider().frame(height: 28)
                 QuotaBar(
-                    title: "5 小时",
+                    title: model.text("5 小时"),
                     value: account.fiveHourRemaining,
                     reset: account.fiveHourReset,
                     barWidth: sharedBarWidth
@@ -420,14 +435,14 @@ private struct AccountDashboardRow: View {
                     .frame(width: fiveHourWidth)
                 Divider().frame(height: 28)
                 QuotaBar(
-                    title: "周额度",
+                    title: model.text("周额度"),
                     value: account.weeklyRemaining,
                     reset: account.weeklyReset,
                     barWidth: sharedBarWidth
                 )
                     .frame(width: weeklyWidth)
                 Divider().frame(height: 28)
-                Text("重置卡 \(account.resetCards) 张")
+                Text(model.text("重置卡 %d 张", account.resetCards))
                     .font(.callout.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -453,7 +468,7 @@ private struct AccountDashboardRow: View {
                 let sharedBarWidth = max(40, min(80, quotaAreaWidth / 2 - 175))
                 HStack(spacing: 12) {
                     QuotaBar(
-                        title: "5 小时",
+                        title: model.text("5 小时"),
                         value: account.fiveHourRemaining,
                         reset: account.fiveHourReset,
                         barWidth: sharedBarWidth
@@ -461,7 +476,7 @@ private struct AccountDashboardRow: View {
                     .frame(width: quotaAreaWidth / 2 + 24)
                     Divider().frame(height: 24)
                     QuotaBar(
-                        title: "周额度",
+                        title: model.text("周额度"),
                         value: account.weeklyRemaining,
                         reset: account.weeklyReset,
                         barWidth: sharedBarWidth
@@ -482,7 +497,7 @@ private struct AccountDashboardRow: View {
     }
 
     private var resetCards: some View {
-        Text("重置卡 \(account.resetCards) 张")
+            Text(model.text("重置卡 %d 张", account.resetCards))
             .font(.callout.weight(.semibold))
             .foregroundStyle(.secondary)
             .lineLimit(1)
@@ -506,7 +521,7 @@ private struct AccountDashboardRow: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(accent)
-                .hoverHint("立即查询此账号，不等待")
+                .hoverHint(model.text("立即查询此账号，不等待"))
                 .disabled(isRefreshing || isSwitching)
 
                 Button { showingActions.toggle() } label: {
@@ -517,7 +532,7 @@ private struct AccountDashboardRow: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(accent)
-                .hoverHint("账号操作")
+                .hoverHint(model.text("账号操作"))
                 .disabled(isSwitching)
                 .popover(isPresented: $showingActions, arrowEdge: .bottom) {
                     VStack(alignment: .leading, spacing: 2) {
@@ -528,7 +543,7 @@ private struct AccountDashboardRow: View {
                                 aliasAction()
                             }
                         } label: {
-                            Label("设置别名", systemImage: "pencil")
+                            Label(model.text("设置别名"), systemImage: "pencil")
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.horizontal, 4)
                                 .padding(.vertical, 6)
@@ -540,7 +555,7 @@ private struct AccountDashboardRow: View {
                             showingActions = false
                             removeAction()
                         } label: {
-                            Label("移除账号", systemImage: "trash")
+                            Label(model.text("移除账号"), systemImage: "trash")
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.horizontal, 4)
                                 .padding(.vertical, 6)
@@ -556,7 +571,7 @@ private struct AccountDashboardRow: View {
             }
             if isRecommended {
                 Button { switchAction() } label: {
-                    Text("切换").frame(width: 44)
+                    Text(model.text("切换")).frame(width: 44)
                 }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.regular)
@@ -564,7 +579,7 @@ private struct AccountDashboardRow: View {
                     .disabled(isSwitching)
             } else {
                 Button { switchAction() } label: {
-                    Text(isCurrent ? "使用" : "切换").frame(width: 44)
+                    Text(model.text(isCurrent ? "使用" : "切换")).frame(width: 44)
                 }
                     .buttonStyle(.bordered)
                     .controlSize(.regular)
@@ -583,6 +598,7 @@ private struct AccountDashboardRow: View {
 }
 
 private struct QuotaBar: View {
+    @EnvironmentObject private var model: AppModel
     let title: String
     let value: Int
     let reset: String
@@ -605,7 +621,7 @@ private struct QuotaBar: View {
                 .tint(color)
                 .frame(width: barWidth)
                 .frame(minWidth: barWidth == nil ? 40 : nil, maxWidth: barWidth == nil ? .infinity : nil)
-            Text("重置 \(compactReset)")
+            Text(model.text("重置 %@", compactReset))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)

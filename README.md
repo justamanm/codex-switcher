@@ -1,46 +1,60 @@
-# Codex Switcher
+<h1 align="center">
+  <img src="docs/images/app-icon.png" width="72" alt="Codex Switcher icon">
+  Codex Switcher
+</h1>
 
-## 概述
+<p align="center">
+  English · <a href="README_zh.md">中文</a>
+</p>
 
-Codex Switcher 是一款面向 macOS 的多账号管理工具，帮助经常使用多个 Codex 账号的人集中查看额度，并在需要时快速切换账号。
+## Overview
 
-它把当前账号、各账号的剩余额度和重置时间放在同一个页面中，还会根据额度情况推荐下一个可用账号。你不必逐个登录检查，也不需要自己比较每个账号还剩多少额度。
+Codex Switcher is a macOS app for managing multiple Codex accounts. It brings account usage into one place and lets you switch accounts when needed.
 
-![Codex Switcher 主界面](docs/images/dashboard-overview.png)
+The app shows your current account, remaining usage, and reset times on a single screen. It also recommends the next available account based on current usage, so you do not need to sign in to each account and compare them manually.
 
-## 它解决什么问题
+## Download
 
-当多个账号轮流使用时，常见的问题是记不清当前登录了哪个账号、不知道哪个账号还有额度，以及切换前需要反复检查。Codex Switcher 将这些信息集中展示，让账号选择和切换变得更直观。
+[Download the latest DMG](https://github.com/justamanm/codex-switcher/releases/download/latest/Codex-Switcher.dmg), open it, and drag Codex Switcher into the Applications folder.
 
-它适合以下使用场景：
+The current build uses an ad hoc signature and has not been notarized by Apple. On first launch, control-click the app and choose **Open**. If macOS still blocks it, open **System Settings → Privacy & Security** and choose **Open Anyway**.
 
-- 同时管理多个 Codex 账号。
-- 经常需要根据剩余额度决定使用哪个账号。
-- 希望减少重复登录、查询和比较账号的操作。
-- 需要清楚了解 5 小时额度、周额度和重置时间。
+![Codex Switcher dashboard](docs/images/dashboard-overview.png)
 
-## 主要功能
+## What it solves
 
-- 集中展示所有已添加账号及其额度状态。
-- 清楚标出当前正在使用的账号。
-- 查看每个账号的 5 小时额度、周额度、重置时间和重置卡。
-- 根据当前额度自动推荐下一个适合切换的账号。
-- 从应用内直接切换到指定账号。
-- 支持整体刷新，也可以单独更新某个账号的额度。
-- 在额度重置后自动更新账号状态。
-- 添加新账号，并为账号设置更容易辨认的名称。
-- 单个账号查询失败时保留原有信息，避免其他账号受到影响。
-- 管理不再使用的非当前账号。
+When several accounts are used in rotation, it can be difficult to remember which account is active, which accounts still have usage available, and when their limits reset. Codex Switcher presents this information together and makes account selection more direct.
 
-## 使用方式
+It is useful when you:
 
-打开应用后，首页会显示当前账号、推荐账号以及全部账号的额度情况。需要更换账号时，可以接受推荐，也可以在账号列表中自行选择。
+- Manage multiple Codex accounts.
+- Choose accounts based on their remaining usage.
+- Want to reduce repeated sign-ins and manual usage checks.
+- Need a clear view of 5-hour usage, weekly usage, reset times, and reset cards.
 
-添加账号时，应用会引导你完成登录，并在完成后恢复正常的账号管理状态。如果中途取消，应用会尽量恢复添加前使用的账号。
+## Features
 
-## 使用说明
+- View every added account and its usage status in one place.
+- Clearly identify the account currently in use.
+- See 5-hour usage, weekly usage, reset times, and reset cards.
+- Get a recommendation for the next account based on available usage.
+- Switch to a selected account from the app.
+- Refresh all accounts together or update one account immediately.
+- Automatically refresh an account after its usage resets.
+- Add accounts and give them recognizable aliases.
+- Keep existing data visible if one account fails to refresh.
+- Manage accounts that are no longer needed.
+- Use Chinese or English, or follow the macOS system language.
 
-- 添加账号前，请先保存正在进行的工作并退出正在运行的 Codex 命令行会话。
-- 添加账号期间请保持 Codex Switcher 运行，以便完成登录或取消后的恢复。
-- 切换账号后，需要完全退出并重新打开 Codex，新的账号才会生效。
-- 账号信息和凭据只在本机使用，应用不会展示身份令牌内容。
+## How to use it
+
+Open the app to see the current account, the recommended next account, and the usage status of every account. You can follow the recommendation or select another account from the list.
+
+When adding an account, the app guides you through signing in and returns to account management when the process is complete. If you cancel, it attempts to restore the account that was active before you started.
+
+## Usage notes
+
+- Save your work and exit any running Codex CLI sessions before adding an account.
+- Keep Codex Switcher open while adding an account so it can complete sign-in or restore the previous account after cancellation.
+- After switching accounts, fully quit and reopen Codex for the new account to take effect.
+- Account information and credentials stay on your Mac. The app does not display identity tokens.
