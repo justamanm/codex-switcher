@@ -333,30 +333,38 @@ struct DashboardView: View {
 
     private var switchAccountSheet: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Image(systemName: "arrow.triangle.2.circlepath.circle")
-                .font(.system(size: 40)).foregroundStyle(accent)
-            Text(model.text("切换账号"))
-                .font(.title2.bold())
+            HStack(spacing: 10) {
+                Image(systemName: "arrow.triangle.2.circlepath.circle")
+                    .font(.system(size: 24)).foregroundStyle(accent)
+                Text(model.text("切换账号"))
+                    .font(.title2.bold())
+            }
             Text(model.text("切换前请确认以下事项。"))
                 .foregroundStyle(.secondary)
-            VStack(alignment: .leading, spacing: 10) {
-                if model.isCodexCLIInstalled {
-                    Label(model.text("先保存并退出所有正在运行的 Codex CLI"), systemImage: "terminal")
-                }
+            Label(model.text("将账号切换到 %@", model.pendingSwitchAccount ?? ""), systemImage: "person.crop.circle.badge.checkmark")
+                .font(.callout)
+            HStack(alignment: .top, spacing: 12) {
                 if model.isChatGPTInstalled {
-                    Label(model.text("确认后会自动关闭 ChatGPT"), systemImage: "power")
-                } else {
-                    Label(model.text("未检测到 ChatGPT，将跳过自动打开"), systemImage: "info.circle")
-                }
-                Label(model.text("将账号切换到 %@", model.pendingSwitchAccount ?? ""), systemImage: "person.crop.circle.badge.checkmark")
-                if model.isChatGPTInstalled {
-                    Label(model.text("切换完成后会自动重新打开 ChatGPT"), systemImage: "arrow.up.forward.app")
+                    switchInstructionCard(
+                        title: "ChatGPT（自动操作）",
+                        systemImage: "bubble.left.and.bubble.right.fill",
+                        steps: [
+                            ("确认后自动关闭", "power"),
+                            ("切换完成后自动重新打开", "arrow.up.forward.app")
+                        ]
+                    )
                 }
                 if model.isCodexCLIInstalled {
-                    Label(model.text("切换完成后请重新打开 Codex CLI"), systemImage: "terminal.fill")
+                    switchInstructionCard(
+                        title: "Codex CLI（需手动关闭和重启）",
+                        systemImage: "terminal.fill",
+                        steps: [
+                            ("切换前保存工作并退出", "terminal"),
+                            ("切换完成后手动重新打开", "arrow.clockwise")
+                        ]
+                    )
                 }
             }
-            .font(.callout)
             HStack {
                 Spacer()
                 Button(model.text("取消")) {
@@ -370,7 +378,28 @@ struct DashboardView: View {
             }
         }
         .padding(26)
-        .frame(width: 500)
+        .frame(width: 620)
+    }
+
+    private func switchInstructionCard(
+        title: String,
+        systemImage: String,
+        steps: [(String, String)]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(model.text(title), systemImage: systemImage)
+                .font(.headline)
+                .foregroundStyle(accent)
+            Divider()
+            ForEach(Array(steps.enumerated()), id: \.offset) { _, step in
+                Label(model.text(step.0), systemImage: step.1)
+                    .font(.callout)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
     }
 
     private var addAccountSheet: some View {
