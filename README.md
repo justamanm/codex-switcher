@@ -55,6 +55,8 @@ When adding an account, the app guides you through signing in and returns to acc
 ## Usage notes
 
 - Save your work and exit any running Codex CLI sessions before adding an account.
+- ChatGPT must be installed to add an account. If it is missing, Codex Switcher stops before changing any account files.
+- Existing accounts can still be switched without ChatGPT installed; automatic reopening is skipped.
 - Keep Codex Switcher open while adding an account so it can complete sign-in or restore the previous account after cancellation.
 - After switching accounts, fully quit and reopen Codex for the new account to take effect.
 - Account information and credentials stay on your Mac. The app does not display identity tokens.

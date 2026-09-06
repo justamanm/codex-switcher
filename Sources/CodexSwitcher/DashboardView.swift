@@ -59,7 +59,9 @@ struct DashboardView: View {
             Button(model.text("切换到 %@", model.pendingSwitchAccount ?? "")) { model.confirmSwitch() }
             Button(model.text("取消"), role: .cancel) { model.pendingSwitchAccount = nil }
         } message: {
-            Text(model.text("请先保存 ChatGPT 中的内容。确认后会关闭 ChatGPT，切换账号，再自动重新打开 ChatGPT。"))
+            Text(model.text(model.isChatGPTInstalled
+                ? "请先保存 ChatGPT 中的内容。确认后会关闭 ChatGPT，切换账号，再自动重新打开 ChatGPT。"
+                : "未检测到 ChatGPT。账号仍会正常切换，但不会自动打开 ChatGPT。"))
         }
         .alert(
             model.text("移除账号"),

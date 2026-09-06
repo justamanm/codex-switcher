@@ -41,7 +41,6 @@ final class AppModel: ObservableObject {
     @AppStorage("didMigrateEmailDefaultNames") private var didMigrateEmailDefaultNames = false
 
     private let codexDirectory = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex")
-    private let chatGPTURL = URL(fileURLWithPath: "/Applications/ChatGPT.app")
     private var automaticTask: Task<Void, Never>?
     private var loginWatchTask: Task<Void, Never>?
     private var loginSession: AccountLoginSession?
@@ -64,6 +63,25 @@ final class AppModel: ObservableObject {
 
     func text(_ key: String, _ arguments: CVarArg...) -> String {
         AppLocalization.text(key, language: appLanguage, arguments)
+    }
+
+    var isChatGPTInstalled: Bool { chatGPTApplicationURL != nil }
+
+    private var chatGPTApplicationURL: URL? {
+        let fileManager = FileManager.default
+        let candidates = [
+            URL(fileURLWithPath: "/Applications/ChatGPT.app"),
+            fileManager.homeDirectoryForCurrentUser.appendingPathComponent("Applications/ChatGPT.app")
+        ]
+        if let installed = candidates.first(where: { fileManager.fileExists(atPath: $0.path) }) {
+            return installed
+        }
+        for bundleIdentifier in ["com.openai.chat", "com.openai.codex"] {
+            if let installed = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) {
+                return installed
+            }
+        }
+        return nil
     }
 
     var recommendation: AccountUsage? {
@@ -237,6 +255,10 @@ final class AppModel: ObservableObject {
             lastError = text("添加账号前必须先切换到一个普通账号。")
             return
         }
+        guard isChatGPTInstalled else {
+            lastError = text("新增账号需要先安装 ChatGPT。未修改任何账号文件。")
+            return
+        }
         lastError = nil
         addAccountStage = text("请先保存工作并退出所有正在运行的 Codex CLI。继续后，请在 ChatGPT 中登录新账号。")
         showingAddAccount = true
@@ -245,6 +267,11 @@ final class AppModel: ObservableObject {
     func startAddAccount() {
         guard !isAddingAccount, !isRefreshing, refreshingAccounts.isEmpty,
               pendingSwitchAccount == nil, currentType == "account", !currentName.isEmpty else { return }
+        guard let chatGPTURL = chatGPTApplicationURL else {
+            showingAddAccount = false
+            lastError = text("新增账号需要先安装 ChatGPT。未修改任何账号文件。")
+            return
+        }
         let archivedName = currentName
         isAddingAccount = true
         lastError = nil
@@ -254,7 +281,7 @@ final class AppModel: ObservableObject {
         loginWatchTask = Task { [weak self] in
             guard let self else { return }
             do {
-                try await closeChatGPT()
+                try await closeChatGPT(at: chatGPTURL)
                 try Task.checkCancellation()
                 loginSession = try AccountLoginSession(directory: codexDirectory, account: archivedName)
                 addAccountStage = text("请在 ChatGPT 中登录新账号。登录数据只保存在本机；本应用不会上传或展示登录凭据。")
@@ -289,8 +316,9 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private func closeChatGPT() async throws {
-        let bundleID = Bundle(url: chatGPTURL)?.bundleIdentifier ?? "com.openai.codex"
+    private func closeChatGPT(at applicationURL: URL? = nil) async throws {
+        guard let applicationURL = applicationURL ?? chatGPTApplicationURL else { return }
+        guard let bundleID = Bundle(url: applicationURL)?.bundleIdentifier else { return }
         let applications = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
         for application in applications { application.terminate() }
         for _ in 0..<50 {
@@ -376,10 +404,12 @@ final class AppModel: ObservableObject {
         guard let account = pendingSwitchAccount else { return }
         showingSwitchConfirmation = false
         isSwitching = true
-        status = text("正在关闭 ChatGPT…")
+        lastError = nil
+        let installedChatGPTURL = chatGPTApplicationURL
+        status = installedChatGPTURL == nil ? text("正在切换到 %@…", account) : text("正在关闭 ChatGPT…")
         Task {
             do {
-                try await closeChatGPT()
+                try await closeChatGPT(at: installedChatGPTURL)
                 status = text("正在切换到 %@…", account)
                 let result = await runScript(["switch", account])
                 loadFromDisk()
@@ -390,13 +420,18 @@ final class AppModel: ObservableObject {
                     pendingSwitchAccount = nil
                     return
                 }
-                do {
-                    try await NSWorkspace.shared.openApplication(at: chatGPTURL, configuration: NSWorkspace.OpenConfiguration())
-                    status = text("已切换到 %@，已打开 ChatGPT", account)
+                if let installedChatGPTURL {
+                    do {
+                        try await NSWorkspace.shared.openApplication(at: installedChatGPTURL, configuration: NSWorkspace.OpenConfiguration())
+                        status = text("已切换到 %@，已打开 ChatGPT", account)
+                        showNotice(text("账号已切换"))
+                    } catch {
+                        status = text("账号已切换")
+                        lastError = text("已切换账号，但无法打开 ChatGPT：%@", error.localizedDescription)
+                    }
+                } else {
+                    status = text("已切换到 %@，未检测到 ChatGPT，已跳过自动打开", account)
                     showNotice(text("账号已切换"))
-                } catch {
-                    status = text("账号已切换")
-                    lastError = text("已切换账号，但无法打开 ChatGPT：%@", error.localizedDescription)
                 }
             } catch {
                 lastError = error.localizedDescription
