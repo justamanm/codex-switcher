@@ -9,6 +9,7 @@ public struct AccountUsage: Codable, Identifiable, Equatable, Sendable {
     public let weeklyResetAt: String?
     public let resetCards: Int
     public let creditBalance: Double?
+    public let authInvalid: Bool
     public let notedAt: String
 
     public var id: String { name }
@@ -21,6 +22,7 @@ public struct AccountUsage: Codable, Identifiable, Equatable, Sendable {
         case weeklyResetAt = "weekly_reset_at"
         case resetCards = "reset_cards"
         case creditBalance = "credit_balance"
+        case authInvalid = "auth_invalid"
         case notedAt = "noted_at"
     }
 
@@ -33,6 +35,7 @@ public struct AccountUsage: Codable, Identifiable, Equatable, Sendable {
         weeklyResetAt: String? = nil,
         resetCards: Int,
         creditBalance: Double? = nil,
+        authInvalid: Bool = false,
         notedAt: String
     ) {
         self.name = name
@@ -43,6 +46,7 @@ public struct AccountUsage: Codable, Identifiable, Equatable, Sendable {
         self.weeklyResetAt = weeklyResetAt
         self.resetCards = resetCards
         self.creditBalance = creditBalance
+        self.authInvalid = authInvalid
         self.notedAt = notedAt
     }
 
@@ -56,6 +60,7 @@ public struct AccountUsage: Codable, Identifiable, Equatable, Sendable {
         weeklyResetAt = try container.decodeIfPresent(String.self, forKey: .weeklyResetAt)
         resetCards = try container.decodeIfPresent(Int.self, forKey: .resetCards) ?? 0
         creditBalance = try container.decodeIfPresent(Double.self, forKey: .creditBalance)
+        authInvalid = try container.decodeIfPresent(Bool.self, forKey: .authInvalid) ?? false
         notedAt = try container.decode(String.self, forKey: .notedAt)
     }
 }
@@ -134,7 +139,8 @@ public enum AccountRecommender {
         now: Date,
         calendar: Calendar
     ) -> Bool {
-        account.name != currentAccount
+        !account.authInvalid
+            && account.name != currentAccount
             && account.weeklyRemaining > 0
             && account.fiveHourRemaining > 0
             && resetDate(account.fiveHourReset, calendar: calendar).map { $0 >= now } == true

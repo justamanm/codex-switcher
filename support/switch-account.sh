@@ -29,6 +29,10 @@ class UserError(Exception):
     pass
 
 
+class AuthExpiredError(UserError):
+    pass
+
+
 class AuthManager:
     def __init__(self) -> None:
         self.root = Path(__file__).resolve().parent
@@ -146,7 +150,7 @@ class AuthManager:
             if (
                 not isinstance(value, dict)
                 or not required.issubset(value)
-                or not set(value).issubset(required | {"reset_cards", "credit_balance", "weekly_reset_at"})
+                or not set(value).issubset(required | {"reset_cards", "credit_balance", "weekly_reset_at", "auth_invalid"})
             ):
                 raise UserError(f"账号 {account} 的限额记录格式无效。")
             self.validate_quota(value["five_hour_remaining"], "5小时额度")
@@ -156,7 +160,10 @@ class AuthManager:
             if not isinstance(value["noted_at"], str):
                 raise UserError(f"账号 {account} 的记录时间格式无效。")
             self.validate_reset_cards(value.get("reset_cards", 0))
+            if not isinstance(value.get("auth_invalid", False), bool):
+                raise UserError(f"账号 {account} 的登录状态格式无效。")
             value.setdefault("reset_cards", 0)
+            value.setdefault("auth_invalid", False)
         return data
 
     @staticmethod
@@ -291,7 +298,7 @@ class AuthManager:
         tokens = auth_data.get("tokens")
         refresh_token = tokens.get("refresh_token") if isinstance(tokens, dict) else None
         if not isinstance(refresh_token, str) or not refresh_token:
-            raise UserError("登录令牌已失效且没有可用的刷新令牌，请切换到该账号重新登录。")
+            raise AuthExpiredError("登录令牌已失效且没有可用的刷新令牌，请切换到该账号重新登录。")
         try:
             refreshed = self.request_json(
                 TOKEN_URL,
@@ -303,7 +310,7 @@ class AuthManager:
                 },
             )
         except HTTPError as exc:
-            raise UserError(
+            raise AuthExpiredError(
                 f"登录令牌刷新失败（HTTP {exc.code}），请切换到该账号重新登录。"
             ) from exc
         for key in ("id_token", "access_token", "refresh_token"):
@@ -345,6 +352,8 @@ class AuthManager:
             try:
                 response = fetch(auth_data)
             except HTTPError as retry_exc:
+                if retry_exc.code == 401:
+                    raise AuthExpiredError("登录令牌已失效，请切换到该账号重新登录。") from retry_exc
                 raise UserError(f"刷新登录令牌后查询仍失败（HTTP {retry_exc.code}）。") from retry_exc
 
         rate_limit = response.get("rate_limit")
@@ -387,11 +396,12 @@ class AuthManager:
             "weekly_reset_at": weekly_reset.isoformat(timespec="seconds"),
             "reset_cards": reset_cards,
             "credit_balance": credit_balance,
+            "auth_invalid": False,
             "noted_at": datetime.now().astimezone().isoformat(timespec="seconds"),
         }
 
     def refresh_usage(
-        self, verbose: bool = True, requested_account: str | None = None
+        self, verbose: bool = True, requested_account: str | None = None, skip_invalid: bool = False
     ) -> tuple[int, list[str]]:
         files = self.account_auth_files()
         if requested_account is not None:
@@ -403,6 +413,10 @@ class AuthManager:
         if not files:
             raise UserError("没有找到可查询的账号认证文件。")
         usage = self.read_account_usage()
+        if skip_invalid and requested_account is None:
+            files = {name: path for name, path in files.items() if not usage.get(name, {}).get("auth_invalid", False)}
+            if not files:
+                return 0, []
         failures: list[str] = []
         refreshed = 0
         self.acquire_lock()
@@ -414,6 +428,20 @@ class AuthManager:
                     refreshed += 1
                     if verbose:
                         print(f"已刷新：{account}")
+                except AuthExpiredError as exc:
+                    now = datetime.now().astimezone()
+                    record = usage.setdefault(account, {
+                        "five_hour_remaining": 0,
+                        "five_hour_reset": now.strftime("%Y-%m-%d %H:%M"),
+                        "weekly_remaining": 0,
+                        "weekly_reset": f"{now.month}.{now.day}",
+                        "weekly_reset_at": None,
+                        "reset_cards": 0,
+                        "credit_balance": None,
+                        "noted_at": now.isoformat(timespec="seconds"),
+                    })
+                    record["auth_invalid"] = True
+                    failures.append(f"{account}：{exc}")
                 except UserError as exc:
                     failures.append(f"{account}：{exc}")
                 if index < len(items) - 1:
@@ -422,13 +450,13 @@ class AuthManager:
                         file=sys.stderr,
                     )
                     time.sleep(ACCOUNT_QUERY_INTERVAL_SECONDS)
-            if refreshed:
+            if refreshed or any(record.get("auth_invalid") for record in usage.values()):
                 self.atomic_write_json(self.account_usage, usage)
         finally:
             self.release_lock()
         for failure in failures:
             print(f"警告：{failure}", file=sys.stderr)
-        if not refreshed:
+        if not refreshed and failures:
             raise UserError("所有账号的用量查询都失败了。")
         return refreshed, failures
 
@@ -1027,11 +1055,12 @@ def main(argv: list[str]) -> int:
         if len(args) != 2:
             raise UserError(f"用法：{program} hub add <中转站名>")
         manager.add_hub(args[1])
-    elif profile_type == "account" and command == "refresh":
+    elif profile_type == "account" and command in {"refresh", "refresh-auto"}:
         if len(args) > 2:
             raise UserError(f"用法：{program} refresh [账号名]")
         refreshed, failures = manager.refresh_usage(
-            requested_account=args[1] if len(args) == 2 else None
+            requested_account=args[1] if len(args) == 2 else None,
+            skip_invalid=command == "refresh-auto",
         )
         print(f"刷新完成：成功 {refreshed} 个，失败 {len(failures)} 个。")
     elif profile_type == "account" and command == "note":

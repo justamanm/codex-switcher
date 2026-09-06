@@ -13,6 +13,7 @@ let data = """
   "current": {"five_hour_remaining": 90, "five_hour_reset": "2030-01-01 09:00", "weekly_remaining": 90, "weekly_reset": "1.2", "reset_cards": 0, "noted_at": "2026-09-05T10:00:00+08:00"},
   "nearest": {"five_hour_remaining": 40, "five_hour_reset": "2030-01-01 10:00", "weekly_remaining": 60, "weekly_reset": "1.2", "reset_cards": 1, "noted_at": "2026-09-05T10:00:00+08:00"},
   "later": {"five_hour_remaining": 50, "five_hour_reset": "2030-01-01 11:00", "weekly_remaining": 70, "weekly_reset": "1.2", "noted_at": "2026-09-05T10:00:00+08:00"},
+  "invalid": {"five_hour_remaining": 100, "five_hour_reset": "2030-01-01 08:30", "weekly_remaining": 100, "weekly_reset": "1.2", "auth_invalid": true, "noted_at": "2026-09-05T10:00:00+08:00"},
   "weeklyZero": {"five_hour_remaining": 80, "five_hour_reset": "2030-01-01 09:30", "weekly_remaining": 0, "weekly_reset": "1.2", "noted_at": "2026-09-05T10:00:00+08:00"}
 }
 """.data(using: .utf8)!
@@ -37,7 +38,8 @@ let rankedNames = AccountRecommender.ranked(
     now: now,
     calendar: calendar
 ).map(\.name)
-precondition(rankedNames == ["nearest", "later", "current", "weeklyZero"], "完整推荐顺序不正确")
+precondition(rankedNames == ["nearest", "later", "current", "invalid", "weeklyZero"], "完整推荐顺序不正确")
+precondition(accounts.first { $0.name == "invalid" }?.authInvalid == true, "没有解析登录失效状态")
 print("账号数据解析与推荐算法检查通过。")
 
 // 使用临时凭据验证恢复，不访问用户的真实账号目录。

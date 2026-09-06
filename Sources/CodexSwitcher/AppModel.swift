@@ -247,14 +247,14 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func refresh() {
+    func refresh(automatic: Bool = false) {
         guard !isAddingAccount, !isSwitching else { return }
         guard !isRefreshing else { return }
         isRefreshing = true
         status = text("正在查询账号限额…")
         lastError = nil
         Task {
-            let result = await runScript(["refresh"])
+            let result = await runScript([automatic ? "refresh-auto" : "refresh"])
             isRefreshing = false
             loadFromDisk()
             refreshTokenUsage()
@@ -590,7 +590,7 @@ final class AppModel: ObservableObject {
         automaticTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(seconds))
             guard !Task.isCancelled else { return }
-            self?.refresh()
+            self?.refresh(automatic: true)
         }
     }
 
@@ -601,6 +601,7 @@ final class AppModel: ObservableObject {
         let eligible = accounts.compactMap { account -> (AccountUsage, Date, String)? in
             guard
                 account.weeklyRemaining > 0,
+                !account.authInvalid,
                 let resetDate = AccountRecommender.resetDate(account.fiveHourReset)
             else { return nil }
             return (account, resetDate, "\(account.name)|\(account.fiveHourReset)")

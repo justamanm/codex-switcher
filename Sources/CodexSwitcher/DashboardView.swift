@@ -702,9 +702,19 @@ private struct AccountDashboardRow: View {
     }
 
     private var accountIdentity: some View {
-        HoverAccountName(name: displayName, identityHelp: identityHelp, font: .headline)
-            .foregroundStyle(accountNameColor)
-            .lineLimit(1)
+        HStack(spacing: 6) {
+            HoverAccountName(name: displayName, identityHelp: identityHelp, font: .headline)
+                .foregroundStyle(accountNameColor)
+                .lineLimit(1)
+            if account.authInvalid {
+                Text(model.text("登录已失效"))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.red)
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(.red.opacity(0.09), in: Capsule())
+                    .help(model.text("不会自动查询；重新登录后可手动刷新恢复。"))
+            }
+        }
     }
 
     private var resetCards: some View {
@@ -732,7 +742,7 @@ private struct AccountDashboardRow: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(accent)
-                .hoverHint(model.text("立即查询此账号，不等待"))
+                .hoverHint(model.text(account.authInvalid ? "重新登录后手动查询此账号" : "立即查询此账号，不等待"))
                 .disabled(isRefreshing || isSwitching)
 
                 Button { showingActions.toggle() } label: {
