@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="docs/images/app-icon.png" width="72" alt="Codex Switcher icon">
+  <img src="docs/images/app-icon.png" width="72" alt="Codex Switcher icon" align="middle">
   Codex Switcher
 </h1>
 
@@ -17,7 +17,7 @@ The app shows your current account, remaining usage, and reset times on a single
 
 [Download v0.1](https://github.com/justamanm/codex-switcher/releases/download/v0.1/Codex-Switcher.dmg), open it, and drag Codex Switcher into the Applications folder. Development builds are also available from the [rolling latest release](https://github.com/justamanm/codex-switcher/releases/tag/latest).
 
-The current build uses an ad hoc signature and has not been notarized by Apple. On first launch, control-click the app and choose **Open**. If macOS still blocks it, open **System Settings → Privacy & Security** and choose **Open Anyway**.
+The current build uses an ad hoc signature. On first launch, control-click the app and choose **Open**. If macOS still blocks it, open **System Settings → Privacy & Security** and choose **Open Anyway**.
 
 ![Codex Switcher dashboard](docs/images/dashboard-overview.png)
 

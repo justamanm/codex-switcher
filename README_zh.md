@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="docs/images/app-icon.png" width="72" alt="Codex Switcher 图标">
+  <img src="docs/images/app-icon.png" width="72" alt="Codex Switcher 图标" align="middle">
   Codex Switcher
 </h1>
 
@@ -13,11 +13,11 @@ Codex Switcher 是一款面向 macOS 的多账号管理工具，帮助经常使�
 
 它把当前账号、各账号的剩余额度和重置时间放在同一个页面中，还会根据额度情况推荐下一个可用账号。你不必逐个登录检查，也不需要自己比较每个账号还剩多少额度。
 
-## 下载与安装
+## 下载
 
 [下载 v0.1](https://github.com/justamanm/codex-switcher/releases/download/v0.1/Codex-Switcher.dmg)，打开后将 Codex Switcher 拖入“应用程序”目录。开发中的最新构建仍可从 [latest Release](https://github.com/justamanm/codex-switcher/releases/tag/latest) 获取。
 
-当前版本使用临时签名，尚未通过 Apple 公证。首次运行时，请按住 Control 点击应用并选择“打开”。如果 macOS 仍然阻止运行，请前往“系统设置 → 隐私与安全性”，选择“仍要打开”。
+当前版本使用临时签名。首次运行时，请按住 Control 点击应用并选择“打开”。如果 macOS 仍然阻止运行，请前往“系统设置 → 隐私与安全性”，选择“仍要打开”。
 
 ![Codex Switcher 主界面](docs/images/dashboard-overview.png)
 
