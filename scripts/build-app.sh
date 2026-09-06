@@ -23,7 +23,7 @@ node "$root_dir/scripts/make-icns.mjs"
 if [[ "${CODEX_SWITCHER_SKIP_SWIFT_BUILD:-0}" != "1" ]]; then
     swift build --disable-sandbox -c release
 fi
-binary="$root_dir/.build/release/CodexSwitcher"
+binary="$(swift build --disable-sandbox -c release --show-bin-path)/CodexSwitcher"
 mkdir -p "$staging_app/Contents/MacOS"
 mkdir -p "$staging_app/Contents/Resources"
 install -m 755 "$binary" "$staging_app/Contents/MacOS/CodexSwitcher"
