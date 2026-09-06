@@ -10,12 +10,23 @@ struct DashboardView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            dashboardContent
+            Group {
+                if model.showingTokenUsage {
+                    tokenUsagePage
+                } else if model.showingSwitchHistory {
+                    switchHistoryPage
+                } else {
+                    dashboardContent
+                }
+            }
                 .frame(width: proxy.size.width, height: proxy.size.height)
                 .onAppear { accountsWidth = proxy.size.width }
                 .onChange(of: proxy.size.width) { _, width in accountsWidth = width }
         }
         .frame(minWidth: 760, minHeight: 620)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .tint(accent)
+        .task { model.start() }
     }
 
     private var dashboardContent: some View {
@@ -70,15 +81,12 @@ struct DashboardView: View {
             addAccountSheet.interactiveDismissDisabled(model.isAddingAccount)
         }
         .sheet(isPresented: $showingSettings) { settingsSheet }
-        .sheet(isPresented: $model.showingTokenUsage) { tokenUsageSheet }
-        .sheet(isPresented: $model.showingSwitchHistory) { switchHistorySheet }
         .sheet(
             isPresented: Binding(
                 get: { model.editingAccount != nil },
                 set: { if !$0 { model.editingAccount = nil } }
             )
         ) { aliasSheet }
-        .task { model.start() }
     }
 
     private var pageHeader: some View {
@@ -102,12 +110,16 @@ struct DashboardView: View {
             Spacer()
             Button {
                 model.refreshTokenUsage()
+                model.showingSwitchHistory = false
                 model.showingTokenUsage = true
             } label: {
                 Label(model.text("Token 统计"), systemImage: "chart.bar.xaxis")
             }
             .controlSize(.large)
-            Button { model.showingSwitchHistory = true } label: {
+            Button {
+                model.showingTokenUsage = false
+                model.showingSwitchHistory = true
+            } label: {
                 Label(model.text("切换记录"), systemImage: "clock.arrow.circlepath")
             }
             .controlSize(.large)
@@ -344,14 +356,13 @@ struct DashboardView: View {
             .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
     }
 
-    private var tokenUsageSheet: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text(model.text("Token 统计")).font(.title2.bold())
-                Spacer()
+    private var tokenUsagePage: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            subpageHeader(title: model.text("Token 统计")) {
                 Text(model.text("仅统计启用此功能后的本机记录"))
                     .font(.caption).foregroundStyle(.secondary)
             }
+            Divider()
             ScrollView {
                 VStack(spacing: 12) {
                     ForEach(model.rankedAccounts) { account in
@@ -372,17 +383,17 @@ struct DashboardView: View {
                         .background(Color.secondary.opacity(0.07), in: RoundedRectangle(cornerRadius: 12))
                     }
                 }
+                .padding(24)
             }
+            Divider()
             HStack {
                 Text(model.text("价格为 OpenAI API 等值估算，使用美元。"))
                     .font(.caption).foregroundStyle(.secondary)
                 Spacer()
-                Button(model.text("完成")) { model.showingTokenUsage = false }
-                    .keyboardShortcut(.defaultAction)
             }
+            .padding(.horizontal, 24).padding(.vertical, 12)
         }
-        .padding(24)
-        .frame(width: 820, height: 560)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func tokenPeriodCard(title: String, totals: TokenUsageTotals) -> some View {
@@ -406,20 +417,20 @@ struct DashboardView: View {
         return model.text("暂无法估算")
     }
 
-    private var switchHistorySheet: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text(model.text("切换记录")).font(.title2.bold())
-                Spacer()
+    private var switchHistoryPage: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            subpageHeader(title: model.text("切换记录")) {
                 Text(model.text("仅保存在本机，最多保留 500 条"))
                     .font(.caption).foregroundStyle(.secondary)
             }
+            Divider()
             if model.switchHistory.isEmpty {
                 ContentUnavailableView(
                     model.text("暂无切换记录"),
                     systemImage: "clock.arrow.circlepath",
                     description: Text(model.text("完成一次账号切换后会显示在这里。"))
                 )
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             } else {
                 List(model.switchHistory) { record in
                     HStack(spacing: 14) {
@@ -443,14 +454,25 @@ struct DashboardView: View {
                     .padding(.vertical, 5)
                 }
             }
-            HStack {
-                Spacer()
-                Button(model.text("完成")) { model.showingSwitchHistory = false }
-                    .keyboardShortcut(.defaultAction)
-            }
         }
-        .padding(24)
-        .frame(width: 680, height: 500)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func subpageHeader<Trailing: View>(title: String, @ViewBuilder trailing: () -> Trailing) -> some View {
+        HStack(spacing: 14) {
+            Button {
+                model.showingTokenUsage = false
+                model.showingSwitchHistory = false
+            } label: {
+                Label(model.text("返回"), systemImage: "chevron.left")
+            }
+            .buttonStyle(.plain)
+            .font(.headline)
+            Text(title).font(.title2.bold())
+            Spacer()
+            trailing()
+        }
+        .padding(.horizontal, 24).padding(.vertical, 18)
     }
 
     private func compactTokens(_ value: Int) -> String {

@@ -42,6 +42,7 @@ enum AppLocalization {
         "设置": "Settings",
         "版本": "Version",
         "完成": "Done",
+        "返回": "Back",
         "语言": "Language",
         "跟随系统": "Follow System",
         "中文": "中文",
