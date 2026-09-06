@@ -65,4 +65,4 @@
 - [x] 执行 DMG 脚本。
 - [x] 挂载并检查 DMG 内容，然后卸载。
 - [x] 检查工作流语法、README 链接和 Git 差异。
-- [ ] 推送后查看 GitHub Actions，确认 `latest` Release 及两个附件。
+- [x] 推送后查看 GitHub Actions，确认 `latest` Release 及两个附件。
