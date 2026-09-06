@@ -6,7 +6,33 @@ struct DashboardView: View {
     @EnvironmentObject private var model: AppModel
     @State private var showingSettings = false
     @State private var accountsWidth: CGFloat = 0
+    @AppStorage("tokenUsageSortPeriod") private var tokenUsageSortPeriod = TokenUsageSortPeriod.fiveHours.rawValue
     private let accent = Color(red: 0.31, green: 0.57, blue: 0.39)
+
+    private enum TokenUsageSortPeriod: String, CaseIterable {
+        case fiveHours
+        case weeklyQuotaCycle
+        case today
+        case currentWeek
+
+        var usagePeriod: TokenUsagePeriod {
+            switch self {
+            case .fiveHours: .fiveHours
+            case .weeklyQuotaCycle: .weeklyQuotaCycle
+            case .today: .today
+            case .currentWeek: .currentWeek
+            }
+        }
+
+        var title: String {
+            switch self {
+            case .fiveHours: "当前 5 小时"
+            case .weeklyQuotaCycle: "周额度周期"
+            case .today: "今天"
+            case .currentWeek: "本周"
+            }
+        }
+    }
 
     var body: some View {
         GeometryReader { proxy in
@@ -359,13 +385,22 @@ struct DashboardView: View {
     private var tokenUsagePage: some View {
         VStack(alignment: .leading, spacing: 0) {
             subpageHeader(title: model.text("Token 统计")) {
-                Text(model.text("仅统计启用此功能后的本机记录"))
-                    .font(.caption).foregroundStyle(.secondary)
+                HStack(spacing: 14) {
+                    Text(model.text("仅统计启用此功能后的本机记录"))
+                        .font(.caption).foregroundStyle(.secondary)
+                    Picker(model.text("排序"), selection: $tokenUsageSortPeriod) {
+                        ForEach(TokenUsageSortPeriod.allCases, id: \.rawValue) { option in
+                            Text(model.text(option.title)).tag(option.rawValue)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .frame(width: 165)
+                }
             }
             Divider()
             ScrollView {
                 LazyVStack(spacing: 10) {
-                    ForEach(model.rankedAccounts) { account in
+                    ForEach(tokenUsageSortedAccounts) { account in
                         tokenUsageAccountRow(account)
                     }
                 }
@@ -380,6 +415,15 @@ struct DashboardView: View {
             .padding(.horizontal, 24).padding(.vertical, 12)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var tokenUsageSortedAccounts: [AccountUsage] {
+        let selected = TokenUsageSortPeriod(rawValue: tokenUsageSortPeriod) ?? .fiveHours
+        return model.rankedAccounts.enumerated().sorted { lhs, rhs in
+            let left = model.tokenTotals(for: lhs.element.name, period: selected.usagePeriod).total
+            let right = model.tokenTotals(for: rhs.element.name, period: selected.usagePeriod).total
+            return left == right ? lhs.offset < rhs.offset : left > right
+        }.map(\.element)
     }
 
     private func tokenUsageAccountRow(_ account: AccountUsage) -> some View {
