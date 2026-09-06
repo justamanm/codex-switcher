@@ -363,35 +363,14 @@ struct DashboardView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Divider()
-            Table(tokenUsageRows) {
-                TableColumn(model.text("账号")) { row in
-                    Text(row.account).fontWeight(.semibold)
+            ScrollView {
+                LazyVStack(spacing: 10) {
+                    ForEach(model.rankedAccounts) { account in
+                        tokenUsageAccountRow(account)
+                    }
                 }
-                .width(min: 100, ideal: 130)
-                TableColumn(model.text("周期")) { row in Text(row.period) }
-                    .width(min: 72, ideal: 86)
-                TableColumn(model.text("总计")) { row in Text(compactTokens(row.totals.total)) }
-                    .width(min: 58, ideal: 68)
-                TableColumn(model.text("输入 / 缓存")) { row in
-                    Text("\(compactTokens(row.totals.input)) / \(compactTokens(row.totals.cachedInput))")
-                }
-                .width(min: 104, ideal: 120)
-                TableColumn(model.text("输出 / 推理")) { row in
-                    Text("\(compactTokens(row.totals.output)) / \(compactTokens(row.totals.reasoningOutput))")
-                }
-                .width(min: 94, ideal: 108)
-                TableColumn(model.text("价格")) { row in
-                    Text(tablePriceText(row.totals)).foregroundStyle(.secondary)
-                }
-                .width(min: 72, ideal: 82)
-                TableColumn(model.text("Credit 余额")) { row in
-                    Text(row.creditBalance.map { String(format: "$%.2f", $0) } ?? model.text("未启用"))
-                        .foregroundStyle(.secondary)
-                }
-                .width(min: 82, ideal: 100)
+                .padding(16)
             }
-            .tableStyle(.inset(alternatesRowBackgrounds: true))
-            .padding(16)
             Divider()
             HStack {
                 Text(model.text("价格为 OpenAI API 等值估算，使用美元；* 表示仅部分用量可估算。"))
@@ -403,40 +382,62 @@ struct DashboardView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private struct TokenUsageRow: Identifiable {
-        let id: String
-        let account: String
-        let period: String
-        let totals: TokenUsageTotals
-        let creditBalance: Double?
+    private func tokenUsageAccountRow(_ account: AccountUsage) -> some View {
+        HStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 7) {
+                Text(model.displayName(for: account.name))
+                    .font(.headline)
+                    .lineLimit(1)
+                Text(account.creditBalance.map { model.text("Credit 余额：$%.2f", $0) } ?? model.text("Credit 余额：未启用"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(width: 155, alignment: .leading)
+
+            Divider().padding(.vertical, 4)
+
+            tokenUsagePeriod(
+                title: "当前 5 小时",
+                totals: model.tokenTotals(for: account.name, period: .fiveHours)
+            )
+            Divider().padding(.vertical, 4)
+            tokenUsagePeriod(
+                title: "今天",
+                totals: model.tokenTotals(for: account.name, period: .today)
+            )
+            Divider().padding(.vertical, 4)
+            tokenUsagePeriod(
+                title: "当前周",
+                totals: model.tokenTotals(for: account.name, period: .currentWeek)
+            )
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .background(.background, in: RoundedRectangle(cornerRadius: 12))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(
+                    model.currentType == "account" && model.currentName == account.name
+                        ? accent.opacity(0.45) : Color.secondary.opacity(0.15),
+                    lineWidth: 1
+                )
+        }
     }
 
-    private var tokenUsageRows: [TokenUsageRow] {
-        model.rankedAccounts.flatMap { account in
-            [
-                TokenUsageRow(
-                    id: "\(account.name)-five-hours",
-                    account: model.displayName(for: account.name),
-                    period: model.text("当前 5 小时"),
-                    totals: model.tokenTotals(for: account.name, period: .fiveHours),
-                    creditBalance: account.creditBalance
-                ),
-                TokenUsageRow(
-                    id: "\(account.name)-today",
-                    account: model.displayName(for: account.name),
-                    period: model.text("今天"),
-                    totals: model.tokenTotals(for: account.name, period: .today),
-                    creditBalance: account.creditBalance
-                ),
-                TokenUsageRow(
-                    id: "\(account.name)-week",
-                    account: model.displayName(for: account.name),
-                    period: model.text("当前周"),
-                    totals: model.tokenTotals(for: account.name, period: .currentWeek),
-                    creditBalance: account.creditBalance
-                )
-            ]
+    private func tokenUsagePeriod(title: String, totals: TokenUsageTotals) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(model.text(title)).font(.callout.weight(.semibold))
+                Spacer()
+                Text(compactTokens(totals.total)).font(.headline)
+            }
+            Text(model.text("输入 %@ · 缓存 %@", compactTokens(totals.input), compactTokens(totals.cachedInput)))
+            Text(model.text("输出 %@ · 推理 %@", compactTokens(totals.output), compactTokens(totals.reasoningOutput)))
+            Text(tablePriceText(totals)).foregroundStyle(.secondary)
         }
+        .font(.caption)
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func tablePriceText(_ totals: TokenUsageTotals) -> String {
