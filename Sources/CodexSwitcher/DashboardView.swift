@@ -143,37 +143,32 @@ struct DashboardView: View {
             }
             .font(.callout)
             Spacer()
-            HStack(spacing: 10) {
-                Picker("", selection: $selectedSection) {
-                    Label(model.text("账号"), systemImage: "person.2.fill")
-                        .tag(DashboardSection.accounts)
-                    Label(model.text("Token 统计"), systemImage: "chart.bar.xaxis")
-                        .tag(DashboardSection.tokenUsage)
-                    Label(model.text("切换记录"), systemImage: "clock.arrow.circlepath")
-                        .tag(DashboardSection.switchHistory)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(width: 320)
-                .onChange(of: selectedSection) { _, section in
-                    if section == .tokenUsage { model.refreshTokenUsage() }
-                }
-
-                Divider().frame(height: 24)
-
-                Button { model.prepareAddAccount() } label: {
-                    Label(model.text("增加账号"), systemImage: "person.badge.plus")
-                        .fixedSize(horizontal: true, vertical: false)
-                }
-                .controlSize(.large)
-                .disabled(model.isSwitching)
+            Picker("", selection: $selectedSection) {
+                Label(model.text("账号"), systemImage: "person.2.fill")
+                    .tag(DashboardSection.accounts)
+                Label(model.text("Token 统计"), systemImage: "chart.bar.xaxis")
+                    .tag(DashboardSection.tokenUsage)
+                Label(model.text("切换记录"), systemImage: "clock.arrow.circlepath")
+                    .tag(DashboardSection.switchHistory)
             }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(width: 320)
             .padding(6)
             .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
             .overlay {
                 RoundedRectangle(cornerRadius: 10)
                     .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
             }
+            .onChange(of: selectedSection) { _, section in
+                if section == .tokenUsage { model.refreshTokenUsage() }
+            }
+            Button { model.prepareAddAccount() } label: {
+                Label(model.text("增加账号"), systemImage: "person.badge.plus")
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+            .controlSize(.large)
+            .disabled(model.isSwitching)
             Button { model.refresh() } label: {
                 Label(model.text(model.isRefreshing ? "正在刷新" : "刷新"), systemImage: "arrow.clockwise")
                     .frame(minWidth: 62)
