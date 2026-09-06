@@ -23,7 +23,12 @@ jobs:
       - name: Run core checks
         run: swift run CodexSwitcherCoreChecks
 
+      - name: Build app
+        run: ./scripts/build-app.sh
+
       - name: Build DMG
+        env:
+          CODEX_SWITCHER_SKIP_APP_BUILD: "1"
         run: ./scripts/build-dmg.sh
 
       - name: Verify DMG contents

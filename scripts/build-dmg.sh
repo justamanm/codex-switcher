@@ -15,7 +15,9 @@ cleanup() {
 }
 trap cleanup EXIT
 
-"$root_dir/scripts/build-app.sh"
+if [[ "${CODEX_SWITCHER_SKIP_APP_BUILD:-0}" != "1" ]]; then
+    "$root_dir/scripts/build-app.sh"
+fi
 codesign --verify --deep --strict "$app_path"
 test -x "$app_path/Contents/MacOS/CodexSwitcher"
 test -f "$app_path/Contents/Resources/AppIcon.icns"
