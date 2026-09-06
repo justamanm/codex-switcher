@@ -6,8 +6,15 @@ struct DashboardView: View {
     @EnvironmentObject private var model: AppModel
     @State private var showingSettings = false
     @State private var accountsWidth: CGFloat = 0
+    @State private var selectedSection = DashboardSection.accounts
     @AppStorage("tokenUsageSortPeriod") private var tokenUsageSortPeriod = TokenUsageSortPeriod.fiveHours.rawValue
     private let accent = Color(red: 0.31, green: 0.57, blue: 0.39)
+
+    private enum DashboardSection: String, CaseIterable {
+        case accounts
+        case tokenUsage
+        case switchHistory
+    }
 
     private enum TokenUsageSortPeriod: String, CaseIterable {
         case fiveHours
@@ -36,15 +43,7 @@ struct DashboardView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            Group {
-                if model.showingTokenUsage {
-                    tokenUsagePage
-                } else if model.showingSwitchHistory {
-                    switchHistoryPage
-                } else {
-                    dashboardContent
-                }
-            }
+            dashboardContent
                 .frame(width: proxy.size.width, height: proxy.size.height)
                 .onAppear { accountsWidth = proxy.size.width }
                 .onChange(of: proxy.size.width) { _, width in accountsWidth = width }
@@ -62,18 +61,28 @@ struct DashboardView: View {
                 accountOverview
                 if let error = model.lastError { errorCard(error) }
             }
-            .padding(.horizontal, 44)
+            .padding(.horizontal, 28)
             .padding(.top, 18)
             .padding(.bottom, 14)
 
             Divider()
 
-            ScrollView {
-                accountsSection
-                    .padding(.horizontal, 44)
-                    .padding(.top, 16)
-                    .padding(.bottom, 36)
+            Group {
+                switch selectedSection {
+                case .accounts:
+                    ScrollView {
+                        accountsSection
+                            .padding(.horizontal, 44)
+                            .padding(.top, 16)
+                            .padding(.bottom, 36)
+                    }
+                case .tokenUsage:
+                    tokenUsageSection
+                case .switchHistory:
+                    switchHistorySection
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .tint(accent)
@@ -116,9 +125,7 @@ struct DashboardView: View {
     }
 
     private var pageHeader: some View {
-        HStack(spacing: 16) {
-            Text("Codex Switcher")
-                .font(.system(size: 28, weight: .bold, design: .rounded))
+        HStack(spacing: 12) {
             Button { showingSettings = true } label: {
                 Image(systemName: "gearshape.fill")
                     .font(.system(size: 18, weight: .semibold))
@@ -134,26 +141,37 @@ struct DashboardView: View {
             }
             .font(.callout)
             Spacer()
-            Button {
-                model.refreshTokenUsage()
-                model.showingSwitchHistory = false
-                model.showingTokenUsage = true
-            } label: {
-                Label(model.text("Token 统计"), systemImage: "chart.bar.xaxis")
+            HStack(spacing: 10) {
+                Picker("", selection: $selectedSection) {
+                    Label(model.text("账号"), systemImage: "person.2.fill")
+                        .tag(DashboardSection.accounts)
+                    Label(model.text("Token 统计"), systemImage: "chart.bar.xaxis")
+                        .tag(DashboardSection.tokenUsage)
+                    Label(model.text("切换记录"), systemImage: "clock.arrow.circlepath")
+                        .tag(DashboardSection.switchHistory)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 320)
+                .onChange(of: selectedSection) { _, section in
+                    if section == .tokenUsage { model.refreshTokenUsage() }
+                }
+
+                Divider().frame(height: 24)
+
+                Button { model.prepareAddAccount() } label: {
+                    Label(model.text("增加账号"), systemImage: "person.badge.plus")
+                        .fixedSize(horizontal: true, vertical: false)
+                }
+                .controlSize(.large)
+                .disabled(model.isSwitching)
             }
-            .controlSize(.large)
-            Button {
-                model.showingTokenUsage = false
-                model.showingSwitchHistory = true
-            } label: {
-                Label(model.text("切换记录"), systemImage: "clock.arrow.circlepath")
+            .padding(6)
+            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
             }
-            .controlSize(.large)
-            Button { model.prepareAddAccount() } label: {
-                Label(model.text("增加账号"), systemImage: "person.badge.plus")
-            }
-            .controlSize(.large)
-            .disabled(model.isSwitching)
             Button { model.refresh() } label: {
                 Label(model.text(model.isRefreshing ? "正在刷新" : "刷新"), systemImage: "arrow.clockwise")
                     .frame(minWidth: 62)
@@ -382,9 +400,11 @@ struct DashboardView: View {
             .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
     }
 
-    private var tokenUsagePage: some View {
+    private var tokenUsageSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            subpageHeader(title: model.text("Token 统计")) {
+            HStack(spacing: 14) {
+                Text(model.text("Token 统计")).font(.title3.bold())
+                Spacer()
                 HStack(spacing: 14) {
                     Text(model.text("仅统计启用此功能后的本机记录"))
                         .font(.caption).foregroundStyle(.secondary)
@@ -397,6 +417,7 @@ struct DashboardView: View {
                     .frame(width: 165)
                 }
             }
+            .padding(.horizontal, 44).padding(.vertical, 16)
             Divider()
             ScrollView {
                 LazyVStack(spacing: 10) {
@@ -515,12 +536,15 @@ struct DashboardView: View {
         return model.text("暂无法估算")
     }
 
-    private var switchHistoryPage: some View {
+    private var switchHistorySection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            subpageHeader(title: model.text("切换记录")) {
+            HStack(spacing: 14) {
+                Text(model.text("切换记录")).font(.title3.bold())
+                Spacer()
                 Text(model.text("仅保存在本机，最多保留 500 条"))
                     .font(.caption).foregroundStyle(.secondary)
             }
+            .padding(.horizontal, 44).padding(.vertical, 16)
             Divider()
             if model.switchHistory.isEmpty {
                 ContentUnavailableView(
@@ -554,23 +578,6 @@ struct DashboardView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private func subpageHeader<Trailing: View>(title: String, @ViewBuilder trailing: () -> Trailing) -> some View {
-        HStack(spacing: 14) {
-            Button {
-                model.showingTokenUsage = false
-                model.showingSwitchHistory = false
-            } label: {
-                Label(model.text("返回"), systemImage: "chevron.left")
-            }
-            .buttonStyle(.plain)
-            .font(.headline)
-            Text(title).font(.title2.bold())
-            Spacer()
-            trailing()
-        }
-        .padding(.horizontal, 24).padding(.vertical, 18)
     }
 
     private func compactTokens(_ value: Int) -> String {
