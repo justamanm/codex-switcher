@@ -51,15 +51,8 @@ struct DashboardView: View {
                     .allowsHitTesting(false)
             }
         }
-        .confirmationDialog(
-            model.text("切换账号"),
-            isPresented: $model.showingSwitchConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button(model.text("切换到 %@", model.pendingSwitchAccount ?? "")) { model.confirmSwitch() }
-            Button(model.text("取消"), role: .cancel) { model.pendingSwitchAccount = nil }
-        } message: {
-            Text(model.switchConfirmationMessage)
+        .sheet(isPresented: $model.showingSwitchConfirmation, onDismiss: { model.pendingSwitchAccount = nil }) {
+            switchAccountSheet
         }
         .alert(
             model.text("移除账号"),
@@ -336,6 +329,48 @@ struct DashboardView: View {
             .foregroundStyle(.orange)
             .padding(15).frame(maxWidth: .infinity, alignment: .leading)
             .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private var switchAccountSheet: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Image(systemName: "arrow.triangle.2.circlepath.circle")
+                .font(.system(size: 40)).foregroundStyle(accent)
+            Text(model.text("切换账号"))
+                .font(.title2.bold())
+            Text(model.text("切换前请确认以下事项。"))
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 10) {
+                if model.isCodexCLIInstalled {
+                    Label(model.text("先保存并退出所有正在运行的 Codex CLI"), systemImage: "terminal")
+                }
+                if model.isChatGPTInstalled {
+                    Label(model.text("确认后会自动关闭 ChatGPT"), systemImage: "power")
+                } else {
+                    Label(model.text("未检测到 ChatGPT，将跳过自动打开"), systemImage: "info.circle")
+                }
+                Label(model.text("将账号切换到 %@", model.pendingSwitchAccount ?? ""), systemImage: "person.crop.circle.badge.checkmark")
+                if model.isChatGPTInstalled {
+                    Label(model.text("切换完成后会自动重新打开 ChatGPT"), systemImage: "arrow.up.forward.app")
+                }
+                if model.isCodexCLIInstalled {
+                    Label(model.text("切换完成后请重新打开 Codex CLI"), systemImage: "terminal.fill")
+                }
+            }
+            .font(.callout)
+            HStack {
+                Spacer()
+                Button(model.text("取消")) {
+                    model.showingSwitchConfirmation = false
+                    model.pendingSwitchAccount = nil
+                }
+                .keyboardShortcut(.cancelAction)
+                Button(model.text("切换到 %@", model.pendingSwitchAccount ?? "")) { model.confirmSwitch() }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(26)
+        .frame(width: 500)
     }
 
     private var addAccountSheet: some View {

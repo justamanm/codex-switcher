@@ -75,19 +75,6 @@ final class AppModel: ObservableObject {
         ClientAvailability(hasChatGPT: isChatGPTInstalled, hasCodexCLI: isCodexCLIInstalled)
     }
 
-    var switchConfirmationMessage: String {
-        switch (isChatGPTInstalled, isCodexCLIInstalled) {
-        case (true, true):
-            return text("请先保存工作并退出 Codex CLI。确认后会关闭 ChatGPT、切换账号并重新打开 ChatGPT；完成后请重新打开 Codex CLI。")
-        case (true, false):
-            return text("请先保存 ChatGPT 中的内容。确认后会关闭 ChatGPT，切换账号，再自动重新打开 ChatGPT。")
-        case (false, true):
-            return text("请先保存工作并退出 Codex CLI。确认后会切换账号；完成后请重新打开 Codex CLI。")
-        case (false, false):
-            return text("未检测到 ChatGPT。账号仍会正常切换，但不会自动打开 ChatGPT。")
-        }
-    }
-
     private var chatGPTApplicationURL: URL? {
         let fileManager = FileManager.default
         let candidates = [
