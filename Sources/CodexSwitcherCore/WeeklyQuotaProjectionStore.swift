@@ -96,6 +96,49 @@ public final class WeeklyQuotaProjectionStore: @unchecked Sendable {
         return state.projection
     }
 
+    @discardableResult
+    public func observe(
+        account: String,
+        resetAt: String,
+        remainingPercent: Int,
+        estimatedUSD: Double,
+        unpricedEvents: Int,
+        at date: Date = Date()
+    ) throws -> WeeklyQuotaProjection? {
+        var states = loadStates()
+        guard var state = states[account], state.resetAt == resetAt, let sample = state.sample else {
+            return nil
+        }
+        let usedPercent = sample.remainingPercent - remainingPercent
+        let usedUSD = estimatedUSD - sample.estimatedUSD
+        if usedPercent > 0, usedUSD > 0 {
+            state.observedUsedPercent += usedPercent
+            state.observedUSD += usedUSD
+            state.isPartial = state.isPartial || unpricedEvents > sample.unpricedEvents
+            state.projection = WeeklyQuotaProjection(
+                estimatedFullUSD: state.observedUSD / Double(state.observedUsedPercent) * 100,
+                observedUsedPercent: state.observedUsedPercent,
+                observedUSD: state.observedUSD,
+                isPartial: state.isPartial,
+                updatedAt: date
+            )
+            state.sample = Sample(
+                remainingPercent: remainingPercent,
+                estimatedUSD: estimatedUSD,
+                unpricedEvents: unpricedEvents
+            )
+        } else if usedPercent < 0 || usedUSD < 0 {
+            state.sample = Sample(
+                remainingPercent: remainingPercent,
+                estimatedUSD: estimatedUSD,
+                unpricedEvents: unpricedEvents
+            )
+        }
+        states[account] = state
+        try save(states)
+        return state.projection
+    }
+
     public func projections() -> [String: WeeklyQuotaProjection] {
         loadStates().compactMapValues(\.projection)
     }

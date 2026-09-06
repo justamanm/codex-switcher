@@ -262,6 +262,7 @@ final class AppModel: ObservableObject {
             loadFromDisk()
             refreshTokenUsage()
             if result.code == 0 {
+                observeWeeklyQuotaProjection(for: currentName)
                 status = result.output.isEmpty ? text("刷新完成") : result.output
             } else {
                 lastError = result.output
@@ -282,6 +283,7 @@ final class AppModel: ObservableObject {
             loadFromDisk()
             refreshTokenUsage()
             if result.code == 0 {
+                observeWeeklyQuotaProjection(for: account)
                 status = text("已刷新 %@", displayName(for: account))
             } else {
                 lastError = result.output
@@ -640,6 +642,20 @@ final class AppModel: ObservableObject {
               let resetAt = usage.weeklyResetAt else { return }
         let totals = tokenTotals(for: account, period: .weeklyQuotaCycle)
         _ = try? weeklyQuotaProjectionStore.finish(
+            account: account,
+            resetAt: resetAt,
+            remainingPercent: usage.weeklyRemaining,
+            estimatedUSD: totals.estimatedUSD,
+            unpricedEvents: totals.unpricedEvents
+        )
+        weeklyQuotaProjections = weeklyQuotaProjectionStore.projections()
+    }
+
+    private func observeWeeklyQuotaProjection(for account: String) {
+        guard let usage = accounts.first(where: { $0.name == account }),
+              let resetAt = usage.weeklyResetAt else { return }
+        let totals = tokenTotals(for: account, period: .weeklyQuotaCycle)
+        _ = try? weeklyQuotaProjectionStore.observe(
             account: account,
             resetAt: resetAt,
             remainingPercent: usage.weeklyRemaining,
