@@ -416,8 +416,15 @@ struct DashboardView: View {
             )
             Divider().padding(.vertical, 4)
             tokenUsagePeriod(
-                title: "当前周",
+                title: "本周",
                 totals: model.tokenTotals(for: account.name, period: .currentWeek)
+            )
+            Divider().padding(.vertical, 4)
+            tokenUsagePeriod(
+                title: "周额度周期",
+                subtitle: model.weeklyQuotaPeriodText(for: account.name) ?? model.text("暂无精确重置时间"),
+                totals: model.tokenTotals(for: account.name, period: .weeklyQuotaCycle),
+                unavailable: model.weeklyQuotaPeriodText(for: account.name) == nil
             )
         }
         .padding(.horizontal, 14)
@@ -432,16 +439,26 @@ struct DashboardView: View {
         }
     }
 
-    private func tokenUsagePeriod(title: String, totals: TokenUsageTotals) -> some View {
+    private func tokenUsagePeriod(
+        title: String,
+        subtitle: String? = nil,
+        totals: TokenUsageTotals,
+        unavailable: Bool = false
+    ) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(alignment: .firstTextBaseline) {
                 Text(model.text(title)).font(.callout.weight(.semibold))
                 Spacer()
-                Text(compactTokens(totals.total)).font(.headline)
+                if !unavailable { Text(compactTokens(totals.total)).font(.headline) }
             }
-            Text(model.text("输入 %@ · 缓存 %@", compactTokens(totals.input), compactTokens(totals.cachedInput)))
-            Text(model.text("输出 %@ · 推理 %@", compactTokens(totals.output), compactTokens(totals.reasoningOutput)))
-            Text(tablePriceText(totals)).foregroundStyle(.secondary)
+            if let subtitle {
+                Text(subtitle).foregroundStyle(.secondary).lineLimit(2)
+            }
+            if !unavailable {
+                Text(model.text("输入 %@ · 缓存 %@", compactTokens(totals.input), compactTokens(totals.cachedInput)))
+                Text(model.text("输出 %@ · 推理 %@", compactTokens(totals.output), compactTokens(totals.reasoningOutput)))
+                Text(tablePriceText(totals)).foregroundStyle(.secondary)
+            }
         }
         .font(.caption)
         .padding(.horizontal, 12)

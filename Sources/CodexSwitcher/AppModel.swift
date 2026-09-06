@@ -584,14 +584,29 @@ final class AppModel: ObservableObject {
         case .today:
             start = calendar.startOfDay(for: now)
         case .currentWeek:
+            start = calendar.dateInterval(of: .weekOfYear, for: now)?.start
+                ?? calendar.startOfDay(for: now)
+        case .weeklyQuotaCycle:
             let resetText = accounts.first { $0.name == account }?.weeklyResetAt
             let formatter = ISO8601DateFormatter()
             let reset = resetText.flatMap { formatter.date(from: $0) }
-            start = reset?.addingTimeInterval(-7 * 24 * 60 * 60)
-                ?? calendar.dateInterval(of: .weekOfYear, for: now)?.start
-                ?? calendar.startOfDay(for: now)
+            guard let reset else { return TokenUsageTotals() }
+            start = reset.addingTimeInterval(-7 * 24 * 60 * 60)
         }
         return tokenTracker.totals(events: tokenEvents, account: account, from: start, to: now)
+    }
+
+    func weeklyQuotaPeriodText(for account: String) -> String? {
+        guard
+            let resetText = accounts.first(where: { $0.name == account })?.weeklyResetAt,
+            let reset = ISO8601DateFormatter().date(from: resetText)
+        else { return nil }
+        let start = reset.addingTimeInterval(-7 * 24 * 60 * 60)
+        let format = Date.FormatStyle()
+            .month(.twoDigits).day(.twoDigits)
+            .hour(.twoDigits(amPM: .omitted)).minute(.twoDigits)
+            .locale(appLanguage.locale)
+        return text("开始 %@\n重置 %@", start.formatted(format), reset.formatted(format))
     }
 
     func configureAutomaticRefresh() {

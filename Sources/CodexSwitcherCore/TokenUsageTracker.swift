@@ -1,6 +1,6 @@
 import Foundation
 
-public enum TokenUsagePeriod: CaseIterable, Sendable { case fiveHours, today, currentWeek }
+public enum TokenUsagePeriod: CaseIterable, Sendable { case fiveHours, today, currentWeek, weeklyQuotaCycle }
 
 public struct TokenUsageTotals: Equatable, Sendable {
     public var input = 0
@@ -10,6 +10,8 @@ public struct TokenUsageTotals: Equatable, Sendable {
     public var reasoningOutput = 0
     public var estimatedUSD = 0.0
     public var unpricedEvents = 0
+
+    public init() {}
 
     public var total: Int { input + output }
 }
