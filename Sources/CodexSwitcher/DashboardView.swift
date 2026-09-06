@@ -71,6 +71,7 @@ struct DashboardView: View {
         }
         .sheet(isPresented: $showingSettings) { settingsSheet }
         .sheet(isPresented: $model.showingTokenUsage) { tokenUsageSheet }
+        .sheet(isPresented: $model.showingSwitchHistory) { switchHistorySheet }
         .sheet(
             isPresented: Binding(
                 get: { model.editingAccount != nil },
@@ -104,6 +105,10 @@ struct DashboardView: View {
                 model.showingTokenUsage = true
             } label: {
                 Label(model.text("Token 统计"), systemImage: "chart.bar.xaxis")
+            }
+            .controlSize(.large)
+            Button { model.showingSwitchHistory = true } label: {
+                Label(model.text("切换记录"), systemImage: "clock.arrow.circlepath")
             }
             .controlSize(.large)
             Button { model.prepareAddAccount() } label: {
@@ -386,15 +391,66 @@ struct DashboardView: View {
             Text(model.text("总计 %@", compactTokens(totals.total))).font(.headline)
             Text(model.text("输入 %@ · 缓存 %@", compactTokens(totals.input), compactTokens(totals.cachedInput)))
             Text(model.text("输出 %@ · 推理 %@", compactTokens(totals.output), compactTokens(totals.reasoningOutput)))
-            Text(totals.unpricedEvents > 0
-                 ? model.text("暂无法估算")
-                 : String(format: "$%.4f", totals.estimatedUSD))
+            Text(priceText(totals))
                 .foregroundStyle(.secondary)
         }
         .font(.caption)
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.background, in: RoundedRectangle(cornerRadius: 9))
+    }
+
+    private func priceText(_ totals: TokenUsageTotals) -> String {
+        if totals.unpricedEvents == 0 { return String(format: "$%.4f", totals.estimatedUSD) }
+        if totals.estimatedUSD > 0 { return model.text("$%.4f（部分可估算）", totals.estimatedUSD) }
+        return model.text("暂无法估算")
+    }
+
+    private var switchHistorySheet: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text(model.text("切换记录")).font(.title2.bold())
+                Spacer()
+                Text(model.text("仅保存在本机，最多保留 500 条"))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if model.switchHistory.isEmpty {
+                ContentUnavailableView(
+                    model.text("暂无切换记录"),
+                    systemImage: "clock.arrow.circlepath",
+                    description: Text(model.text("完成一次账号切换后会显示在这里。"))
+                )
+            } else {
+                List(model.switchHistory) { record in
+                    HStack(spacing: 14) {
+                        Image(systemName: record.result == .success ? "checkmark.circle.fill" : "xmark.circle.fill")
+                            .foregroundStyle(record.result == .success ? Color.green : Color.red)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(model.text("%@ → %@", model.displayName(for: record.fromAccount), model.displayName(for: record.toAccount)))
+                                .font(.headline)
+                            Text(record.timestamp.formatted(
+                                .dateTime.year().month().day().hour().minute().second().locale(model.appLanguage.locale)
+                            ))
+                            .font(.caption).foregroundStyle(.secondary)
+                            if !record.message.isEmpty {
+                                Text(record.message).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                            }
+                        }
+                        Spacer()
+                        Text(model.text(record.result == .success ? "成功" : "失败"))
+                            .font(.callout.weight(.medium))
+                    }
+                    .padding(.vertical, 5)
+                }
+            }
+            HStack {
+                Spacer()
+                Button(model.text("完成")) { model.showingSwitchHistory = false }
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(24)
+        .frame(width: 680, height: 500)
     }
 
     private func compactTokens(_ value: Int) -> String {

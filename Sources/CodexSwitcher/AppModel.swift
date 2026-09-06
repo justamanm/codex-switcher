@@ -33,7 +33,9 @@ final class AppModel: ObservableObject {
     @Published var editingAlias = ""
     @Published var removingAccount: String?
     @Published var showingTokenUsage = false
+    @Published var showingSwitchHistory = false
     @Published private(set) var tokenEvents: [TokenUsageEvent] = []
+    @Published private(set) var switchHistory: [SwitchHistoryRecord] = []
     @Published private(set) var isCodexCLIInstalled = false
     @Published private(set) var isDetectingCodexCLI = true
     @Published private(set) var addAccountUsesChatGPT = false
@@ -56,6 +58,9 @@ final class AppModel: ObservableObject {
     private lazy var tokenTracker = TokenUsageTracker(
         roots: [codexDirectory.appendingPathComponent("sessions"), codexDirectory.appendingPathComponent("archived_sessions")],
         stateURL: codexDirectory.appendingPathComponent("codex_switcher_token_usage.json")
+    )
+    private lazy var switchHistoryStore = SwitchHistoryStore(
+        url: codexDirectory.appendingPathComponent("codex_switcher_switch_history.json")
     )
 
     private enum StartupRecovery {
@@ -120,6 +125,7 @@ final class AppModel: ObservableObject {
         detectCodexCLI()
         let recovery = recoverInterruptedAddition()
         loadFromDisk()
+        switchHistory = switchHistoryStore.load()
         refreshTokenUsage()
         configureAutomaticRefresh()
         switch recovery {
@@ -489,6 +495,7 @@ final class AppModel: ObservableObject {
         isSwitching = true
         lastError = nil
         let installedChatGPTURL = chatGPTApplicationURL
+        let sourceAccount = currentName
         status = installedChatGPTURL == nil ? text("正在切换到 %@…", account) : text("正在关闭 ChatGPT…")
         Task {
             do {
@@ -498,12 +505,14 @@ final class AppModel: ObservableObject {
                 let result = await runScript(["switch", account])
                 loadFromDisk()
                 guard result.code == 0 else {
+                    recordSwitch(from: sourceAccount, to: account, result: .failure, message: result.output)
                     lastError = result.output
                     status = text("切换失败")
                     isSwitching = false
                     pendingSwitchAccount = nil
                     return
                 }
+                recordSwitch(from: sourceAccount, to: account, result: .success)
                 refreshTokenUsage()
                 if let installedChatGPTURL {
                     do {
@@ -533,6 +542,16 @@ final class AppModel: ObservableObject {
             }
             isSwitching = false
             pendingSwitchAccount = nil
+        }
+    }
+
+    private func recordSwitch(from: String, to: String, result: SwitchResult, message: String = "") {
+        do {
+            switchHistory = try switchHistoryStore.append(SwitchHistoryRecord(
+                fromAccount: from, toAccount: to, result: result, message: message
+            ))
+        } catch {
+            lastError = text("无法保存切换记录：%@", error.localizedDescription)
         }
     }
 

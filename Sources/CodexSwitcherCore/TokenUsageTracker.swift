@@ -102,6 +102,9 @@ public final class TokenUsageTracker: @unchecked Sendable {
             try handle.seek(toOffset: start)
             let data = try handle.readToEnd() ?? Data()
             guard !data.isEmpty else { continue }
+            if state.models[key] == nil, start > 0 {
+                state.models[key] = modelBeforeOffset(in: file, offset: start)
+            }
             guard let lastNewline = data.lastIndex(of: 0x0A) else { continue }
             let complete = data.prefix(through: lastNewline)
             var lineStart = complete.startIndex
@@ -114,6 +117,7 @@ public final class TokenUsageTracker: @unchecked Sendable {
             }
             state.cursors[key] = start + UInt64(complete.count)
         }
+        repairUnknownModels(in: &state, files: files)
         try save(state)
         return state.events
     }
@@ -160,6 +164,48 @@ public final class TokenUsageTracker: @unchecked Sendable {
         let fractional = ISO8601DateFormatter()
         fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return fractional.date(from: value) ?? ISO8601DateFormatter().date(from: value)
+    }
+
+    private func repairUnknownModels(in state: inout State, files: [URL]) {
+        let byName = Dictionary(files.map { ($0.lastPathComponent, $0) }, uniquingKeysWith: { first, _ in first })
+        let unknownByFile = Dictionary(grouping: state.events.indices.filter { state.events[$0].model == "unknown" }) {
+            String(state.events[$0].id.split(separator: ":", maxSplits: 1)[0])
+        }
+        for (key, indices) in unknownByFile {
+            guard let file = byName[key] else { continue }
+            let firstOffset = indices.compactMap {
+                UInt64(state.events[$0].id.split(separator: ":", maxSplits: 1).last ?? "")
+            }.min() ?? 0
+            guard let model = state.models[key] ?? modelBeforeOffset(in: file, offset: firstOffset) else { continue }
+            for index in indices {
+                let event = state.events[index]
+                state.events[index] = TokenUsageEvent(
+                    id: event.id, account: event.account, timestamp: event.timestamp, model: model,
+                    input: event.input, cachedInput: event.cachedInput, cacheWriteInput: event.cacheWriteInput,
+                    output: event.output, reasoningOutput: event.reasoningOutput
+                )
+            }
+        }
+    }
+
+    private func modelBeforeOffset(in file: URL, offset: UInt64) -> String? {
+        guard let handle = try? FileHandle(forReadingFrom: file) else { return nil }
+        defer { try? handle.close() }
+        var model: String?
+        guard let data = try? handle.read(upToCount: Int(offset)), !data.isEmpty else { return nil }
+        for line in data.split(separator: 0x0A) {
+                guard let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any],
+                      let payload = object["payload"] as? [String: Any] else { continue }
+                if object["type"] as? String == "turn_context", let value = payload["model"] as? String {
+                    model = value
+                } else if object["type"] as? String == "event_msg",
+                          payload["type"] as? String == "thread_settings_applied",
+                          let settings = payload["thread_settings"] as? [String: Any],
+                          let value = settings["model"] as? String {
+                    model = value
+                }
+        }
+        return model
     }
 
     private func sessionFiles() -> [URL] {

@@ -187,16 +187,22 @@ func checkTokenUsageTracking() throws {
         {"timestamp":"2026-09-06T09:00:01.123Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":\(input),"cached_input_tokens":40,"cache_write_input_tokens":0,"output_tokens":20,"reasoning_output_tokens":5,"total_tokens":\(input + 20)}}}}
         """ + "\n"
     }
+    func tokenRecord(_ input: Int) -> String {
+        """
+        {"timestamp":"2026-09-06T09:00:01.123Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":\(input),"cached_input_tokens":40,"cache_write_input_tokens":0,"output_tokens":20,"reasoning_output_tokens":5,"total_tokens":\(input + 20)}}}}
+        """ + "\n"
+    }
     try record(100).write(to: log, atomically: true, encoding: .utf8)
     let tracker = TokenUsageTracker(roots: [sessions], stateURL: root.appendingPathComponent("state.json"))
     let initial = try tracker.scan(account: "alpha")
     precondition(initial.isEmpty, "首次启用不应导入历史记录")
     let handle = try FileHandle(forWritingTo: log)
     try handle.seekToEnd()
-    try handle.write(contentsOf: Data(record(240).utf8))
+    try handle.write(contentsOf: Data(tokenRecord(240).utf8))
     try handle.close()
     let events = try tracker.scan(account: "alpha")
     precondition(events.count == 1 && events[0].input == 240, "没有只读取新增 Token 记录")
+    precondition(events[0].model == "gpt-5.6-sol", "没有从启用位置之前恢复模型名称")
     let repeated = try tracker.scan(account: "alpha")
     precondition(repeated.count == 1, "重复扫描不应重复计数")
     let priceEvent = TokenUsageEvent(
@@ -208,3 +214,15 @@ func checkTokenUsageTracking() throws {
     print("Token 增量统计检查通过：忽略历史、读取新增、避免重复、分别计算缓存价格。")
 }
 try checkTokenUsageTracking()
+
+func checkSwitchHistory() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("switch-history-check-\(UUID().uuidString)")
+    let store = SwitchHistoryStore(url: root.appendingPathComponent("history.json"))
+    precondition(store.load().isEmpty)
+    _ = try store.append(SwitchHistoryRecord(fromAccount: "alpha", toAccount: "beta", result: .success))
+    _ = try store.append(SwitchHistoryRecord(fromAccount: "beta", toAccount: "gamma", result: .failure, message: "test"))
+    let records = store.load()
+    precondition(records.count == 2 && records[0].toAccount == "gamma" && records[1].toAccount == "beta")
+    print("切换记录检查通过：成功与失败记录按最新时间排列。")
+}
+try checkSwitchHistory()
