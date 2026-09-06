@@ -58,7 +58,9 @@ struct DashboardView: View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 14) {
                 pageHeader
-                accountOverview
+                if selectedSection == .accounts {
+                    accountOverview
+                }
                 if let error = model.lastError { errorCard(error) }
             }
             .padding(.horizontal, 28)
