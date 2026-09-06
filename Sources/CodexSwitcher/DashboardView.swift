@@ -449,7 +449,7 @@ struct DashboardView: View {
     private var aliasSheet: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(model.text("设置账号别名")).font(.title2.bold())
-            Text(model.text("界面只显示别名；鼠标停留在别名上仍可查看原用户名和邮箱。"))
+            Text(model.text("界面只显示别名；鼠标停留在别名上仍可查看用户名和邮箱。"))
                 .foregroundStyle(.secondary)
             TextField(model.text("别名"), text: $model.editingAlias)
                 .textFieldStyle(.roundedBorder)
@@ -742,7 +742,8 @@ private struct HoverAccountName: View {
             ) {
                 Text(identityHelp)
                     .font(.callout)
-                    .foregroundStyle(.primary)
+                    .foregroundColor(Color(nsColor: .labelColor))
+                    .lineLimit(nil)
                     .lineSpacing(4)
                     .fixedSize(horizontal: true, vertical: true)
                     .padding(.horizontal, 12)

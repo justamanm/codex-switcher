@@ -284,7 +284,7 @@ final class AppModel: ObservableObject {
 
     func identityHelp(for account: String) -> String {
         guard let identity = identities[account] else { return text("账号文件名：%@", account) }
-        return text("原用户名：%@\n邮箱：%@", identity.originalName, identity.email)
+        return text("用户名：%@\n邮箱：%@", identity.originalName, identity.email)
     }
 
     func beginEditingAlias(_ account: String) {
