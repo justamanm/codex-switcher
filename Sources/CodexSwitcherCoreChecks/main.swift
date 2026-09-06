@@ -174,3 +174,37 @@ func checkInterruptedAdditionRecovery() throws {
     print("新增账号中断恢复检查通过：未移动、未登录恢复、新登录登记、备份缺失保留现场。")
 }
 try checkInterruptedAdditionRecovery()
+
+func checkTokenUsageTracking() throws {
+    let files = FileManager.default
+    let root = files.temporaryDirectory.appendingPathComponent("token-usage-check-\(UUID().uuidString)")
+    let sessions = root.appendingPathComponent("sessions")
+    try files.createDirectory(at: sessions, withIntermediateDirectories: true)
+    let log = sessions.appendingPathComponent("rollout.jsonl")
+    func record(_ input: Int) -> String {
+        """
+        {"timestamp":"2026-09-06T09:00:00Z","type":"turn_context","payload":{"model":"gpt-5.6-sol"}}
+        {"timestamp":"2026-09-06T09:00:01.123Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":\(input),"cached_input_tokens":40,"cache_write_input_tokens":0,"output_tokens":20,"reasoning_output_tokens":5,"total_tokens":\(input + 20)}}}}
+        """ + "\n"
+    }
+    try record(100).write(to: log, atomically: true, encoding: .utf8)
+    let tracker = TokenUsageTracker(roots: [sessions], stateURL: root.appendingPathComponent("state.json"))
+    let initial = try tracker.scan(account: "alpha")
+    precondition(initial.isEmpty, "首次启用不应导入历史记录")
+    let handle = try FileHandle(forWritingTo: log)
+    try handle.seekToEnd()
+    try handle.write(contentsOf: Data(record(240).utf8))
+    try handle.close()
+    let events = try tracker.scan(account: "alpha")
+    precondition(events.count == 1 && events[0].input == 240, "没有只读取新增 Token 记录")
+    let repeated = try tracker.scan(account: "alpha")
+    precondition(repeated.count == 1, "重复扫描不应重复计数")
+    let priceEvent = TokenUsageEvent(
+        id: "price", account: "alpha", timestamp: Date(), model: "gpt-5.6-sol",
+        input: 1_000_000, cachedInput: 500_000, cacheWriteInput: 0,
+        output: 100_000, reasoningOutput: 20_000
+    )
+    precondition(abs((ModelPricing.estimatedUSD(for: priceEvent) ?? 0) - 4.2) < 0.0001, "缓存价格计算错误")
+    print("Token 增量统计检查通过：忽略历史、读取新增、避免重复、分别计算缓存价格。")
+}
+try checkTokenUsageTracking()

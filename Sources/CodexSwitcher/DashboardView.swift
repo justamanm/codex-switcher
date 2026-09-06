@@ -70,6 +70,7 @@ struct DashboardView: View {
             addAccountSheet.interactiveDismissDisabled(model.isAddingAccount)
         }
         .sheet(isPresented: $showingSettings) { settingsSheet }
+        .sheet(isPresented: $model.showingTokenUsage) { tokenUsageSheet }
         .sheet(
             isPresented: Binding(
                 get: { model.editingAccount != nil },
@@ -98,6 +99,13 @@ struct DashboardView: View {
             }
             .font(.callout)
             Spacer()
+            Button {
+                model.refreshTokenUsage()
+                model.showingTokenUsage = true
+            } label: {
+                Label(model.text("Token 统计"), systemImage: "chart.bar.xaxis")
+            }
+            .controlSize(.large)
             Button { model.prepareAddAccount() } label: {
                 Label(model.text("增加账号"), systemImage: "person.badge.plus")
             }
@@ -329,6 +337,70 @@ struct DashboardView: View {
             .foregroundStyle(.orange)
             .padding(15).frame(maxWidth: .infinity, alignment: .leading)
             .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private var tokenUsageSheet: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text(model.text("Token 统计")).font(.title2.bold())
+                Spacer()
+                Text(model.text("仅统计启用此功能后的本机记录"))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            ScrollView {
+                VStack(spacing: 12) {
+                    ForEach(model.rankedAccounts) { account in
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Text(model.displayName(for: account.name)).font(.headline)
+                                Spacer()
+                                Text(account.creditBalance.map { model.text("Credit 余额：$%.2f", $0) } ?? model.text("Credit 余额：未启用"))
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            HStack(spacing: 10) {
+                                tokenPeriodCard(title: "当前 5 小时", totals: model.tokenTotals(for: account.name, period: .fiveHours))
+                                tokenPeriodCard(title: "今天", totals: model.tokenTotals(for: account.name, period: .today))
+                                tokenPeriodCard(title: "当前周", totals: model.tokenTotals(for: account.name, period: .currentWeek))
+                            }
+                        }
+                        .padding(14)
+                        .background(Color.secondary.opacity(0.07), in: RoundedRectangle(cornerRadius: 12))
+                    }
+                }
+            }
+            HStack {
+                Text(model.text("价格为 OpenAI API 等值估算，使用美元。"))
+                    .font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Button(model.text("完成")) { model.showingTokenUsage = false }
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(24)
+        .frame(width: 820, height: 560)
+    }
+
+    private func tokenPeriodCard(title: String, totals: TokenUsageTotals) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(model.text(title)).font(.callout.bold())
+            Text(model.text("总计 %@", compactTokens(totals.total))).font(.headline)
+            Text(model.text("输入 %@ · 缓存 %@", compactTokens(totals.input), compactTokens(totals.cachedInput)))
+            Text(model.text("输出 %@ · 推理 %@", compactTokens(totals.output), compactTokens(totals.reasoningOutput)))
+            Text(totals.unpricedEvents > 0
+                 ? model.text("暂无法估算")
+                 : String(format: "$%.4f", totals.estimatedUSD))
+                .foregroundStyle(.secondary)
+        }
+        .font(.caption)
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.background, in: RoundedRectangle(cornerRadius: 9))
+    }
+
+    private func compactTokens(_ value: Int) -> String {
+        if value >= 1_000_000 { return String(format: "%.2fM", Double(value) / 1_000_000) }
+        if value >= 1_000 { return String(format: "%.1fK", Double(value) / 1_000) }
+        return String(value)
     }
 
     private var switchAccountSheet: some View {

@@ -6,7 +6,9 @@ public struct AccountUsage: Codable, Identifiable, Equatable, Sendable {
     public let fiveHourReset: String
     public let weeklyRemaining: Int
     public let weeklyReset: String
+    public let weeklyResetAt: String?
     public let resetCards: Int
+    public let creditBalance: Double?
     public let notedAt: String
 
     public var id: String { name }
@@ -16,7 +18,9 @@ public struct AccountUsage: Codable, Identifiable, Equatable, Sendable {
         case fiveHourReset = "five_hour_reset"
         case weeklyRemaining = "weekly_remaining"
         case weeklyReset = "weekly_reset"
+        case weeklyResetAt = "weekly_reset_at"
         case resetCards = "reset_cards"
+        case creditBalance = "credit_balance"
         case notedAt = "noted_at"
     }
 
@@ -26,7 +30,9 @@ public struct AccountUsage: Codable, Identifiable, Equatable, Sendable {
         fiveHourReset: String,
         weeklyRemaining: Int,
         weeklyReset: String,
+        weeklyResetAt: String? = nil,
         resetCards: Int,
+        creditBalance: Double? = nil,
         notedAt: String
     ) {
         self.name = name
@@ -34,7 +40,9 @@ public struct AccountUsage: Codable, Identifiable, Equatable, Sendable {
         self.fiveHourReset = fiveHourReset
         self.weeklyRemaining = weeklyRemaining
         self.weeklyReset = weeklyReset
+        self.weeklyResetAt = weeklyResetAt
         self.resetCards = resetCards
+        self.creditBalance = creditBalance
         self.notedAt = notedAt
     }
 
@@ -45,7 +53,9 @@ public struct AccountUsage: Codable, Identifiable, Equatable, Sendable {
         fiveHourReset = try container.decode(String.self, forKey: .fiveHourReset)
         weeklyRemaining = try container.decode(Int.self, forKey: .weeklyRemaining)
         weeklyReset = try container.decode(String.self, forKey: .weeklyReset)
+        weeklyResetAt = try container.decodeIfPresent(String.self, forKey: .weeklyResetAt)
         resetCards = try container.decodeIfPresent(Int.self, forKey: .resetCards) ?? 0
+        creditBalance = try container.decodeIfPresent(Double.self, forKey: .creditBalance)
         notedAt = try container.decode(String.self, forKey: .notedAt)
     }
 }

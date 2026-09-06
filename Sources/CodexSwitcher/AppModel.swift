@@ -32,6 +32,8 @@ final class AppModel: ObservableObject {
     @Published var editingAccount: String?
     @Published var editingAlias = ""
     @Published var removingAccount: String?
+    @Published var showingTokenUsage = false
+    @Published private(set) var tokenEvents: [TokenUsageEvent] = []
     @Published private(set) var isCodexCLIInstalled = false
     @Published private(set) var isDetectingCodexCLI = true
     @Published private(set) var addAccountUsesChatGPT = false
@@ -51,6 +53,10 @@ final class AppModel: ObservableObject {
     private var noticeTask: Task<Void, Never>?
     private var resetRefreshTasks: [String: Task<Void, Never>] = [:]
     private var triggeredResetKeys: Set<String> = []
+    private lazy var tokenTracker = TokenUsageTracker(
+        roots: [codexDirectory.appendingPathComponent("sessions"), codexDirectory.appendingPathComponent("archived_sessions")],
+        stateURL: codexDirectory.appendingPathComponent("codex_switcher_token_usage.json")
+    )
 
     private enum StartupRecovery {
         case none
@@ -114,6 +120,7 @@ final class AppModel: ObservableObject {
         detectCodexCLI()
         let recovery = recoverInterruptedAddition()
         loadFromDisk()
+        refreshTokenUsage()
         configureAutomaticRefresh()
         switch recovery {
         case .none:
@@ -244,6 +251,7 @@ final class AppModel: ObservableObject {
             let result = await runScript(["refresh"])
             isRefreshing = false
             loadFromDisk()
+            refreshTokenUsage()
             if result.code == 0 {
                 status = result.output.isEmpty ? text("刷新完成") : result.output
             } else {
@@ -263,6 +271,7 @@ final class AppModel: ObservableObject {
             let result = await runScript(["refresh", account])
             refreshingAccounts.remove(account)
             loadFromDisk()
+            refreshTokenUsage()
             if result.code == 0 {
                 status = text("已刷新 %@", displayName(for: account))
             } else {
@@ -483,6 +492,7 @@ final class AppModel: ObservableObject {
         status = installedChatGPTURL == nil ? text("正在切换到 %@…", account) : text("正在关闭 ChatGPT…")
         Task {
             do {
+                refreshTokenUsage()
                 try await closeChatGPT(at: installedChatGPTURL)
                 status = text("正在切换到 %@…", account)
                 let result = await runScript(["switch", account])
@@ -494,6 +504,7 @@ final class AppModel: ObservableObject {
                     pendingSwitchAccount = nil
                     return
                 }
+                refreshTokenUsage()
                 if let installedChatGPTURL {
                     do {
                         try await NSWorkspace.shared.openApplication(at: installedChatGPTURL, configuration: NSWorkspace.OpenConfiguration())
@@ -523,6 +534,33 @@ final class AppModel: ObservableObject {
             isSwitching = false
             pendingSwitchAccount = nil
         }
+    }
+
+    func refreshTokenUsage() {
+        guard currentType == "account", !currentName.isEmpty else { return }
+        do { tokenEvents = try tokenTracker.scan(account: currentName) }
+        catch { lastError = text("无法读取 Token 统计：%@", error.localizedDescription) }
+    }
+
+    func tokenTotals(for account: String, period: TokenUsagePeriod, now: Date = Date()) -> TokenUsageTotals {
+        let calendar = Calendar.current
+        let start: Date
+        switch period {
+        case .fiveHours:
+            let reset = accounts.first { $0.name == account }
+                .flatMap { AccountRecommender.resetDate($0.fiveHourReset) }
+            start = reset?.addingTimeInterval(-5 * 60 * 60) ?? now.addingTimeInterval(-5 * 60 * 60)
+        case .today:
+            start = calendar.startOfDay(for: now)
+        case .currentWeek:
+            let resetText = accounts.first { $0.name == account }?.weeklyResetAt
+            let formatter = ISO8601DateFormatter()
+            let reset = resetText.flatMap { formatter.date(from: $0) }
+            start = reset?.addingTimeInterval(-7 * 24 * 60 * 60)
+                ?? calendar.dateInterval(of: .weekOfYear, for: now)?.start
+                ?? calendar.startOfDay(for: now)
+        }
+        return tokenTracker.totals(events: tokenEvents, account: account, from: start, to: now)
     }
 
     func configureAutomaticRefresh() {

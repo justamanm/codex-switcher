@@ -146,7 +146,7 @@ class AuthManager:
             if (
                 not isinstance(value, dict)
                 or not required.issubset(value)
-                or not set(value).issubset(required | {"reset_cards"})
+                or not set(value).issubset(required | {"reset_cards", "credit_balance", "weekly_reset_at"})
             ):
                 raise UserError(f"账号 {account} 的限额记录格式无效。")
             self.validate_quota(value["five_hour_remaining"], "5小时额度")
@@ -371,6 +371,12 @@ class AuthManager:
         reset_cards = credits.get("available_count", 0) if isinstance(credits, dict) else 0
         if isinstance(reset_cards, bool) or not isinstance(reset_cards, int) or reset_cards < 0:
             reset_cards = 0
+        credit_info = response.get("credits")
+        credit_balance = credit_info.get("balance") if isinstance(credit_info, dict) else None
+        try:
+            credit_balance = float(credit_balance) if credit_balance is not None else None
+        except (TypeError, ValueError):
+            credit_balance = None
         five_reset = reset_at(primary, "5小时")
         weekly_reset = reset_at(secondary, "周")
         return {
@@ -378,7 +384,9 @@ class AuthManager:
             "five_hour_reset": five_reset.strftime("%Y-%m-%d %H:%M"),
             "weekly_remaining": remaining(secondary, "周"),
             "weekly_reset": f"{weekly_reset.month}.{weekly_reset.day}",
+            "weekly_reset_at": weekly_reset.isoformat(timespec="seconds"),
             "reset_cards": reset_cards,
+            "credit_balance": credit_balance,
             "noted_at": datetime.now().astimezone().isoformat(timespec="seconds"),
         }
 
