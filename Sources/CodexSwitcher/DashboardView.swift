@@ -33,7 +33,7 @@ struct DashboardView: View {
 
         var title: String {
             switch self {
-            case .fiveHours: "当前 5 小时"
+            case .fiveHours: "5h"
             case .weeklyQuotaCycle: "周额度周期"
             case .today: "今天"
             case .currentWeek: "本周"
@@ -468,8 +468,16 @@ struct DashboardView: View {
             Divider().padding(.vertical, 4)
 
             tokenUsagePeriod(
-                title: "当前 5 小时",
+                title: "5h",
                 totals: model.tokenTotals(for: account.name, period: .fiveHours)
+            )
+            Divider().padding(.vertical, 4)
+            tokenUsagePeriod(
+                title: "周额度周期",
+                subtitle: model.weeklyQuotaPeriodText(for: account.name) ?? model.text("暂无精确重置时间"),
+                totals: model.tokenTotals(for: account.name, period: .weeklyQuotaCycle),
+                unavailable: model.weeklyQuotaPeriodText(for: account.name) == nil,
+                projection: model.weeklyQuotaProjections[account.name]
             )
             Divider().padding(.vertical, 4)
             tokenUsagePeriod(
@@ -480,13 +488,6 @@ struct DashboardView: View {
             tokenUsagePeriod(
                 title: "本周",
                 totals: model.tokenTotals(for: account.name, period: .currentWeek)
-            )
-            Divider().padding(.vertical, 4)
-            tokenUsagePeriod(
-                title: "周额度周期",
-                subtitle: model.weeklyQuotaPeriodText(for: account.name) ?? model.text("暂无精确重置时间"),
-                totals: model.tokenTotals(for: account.name, period: .weeklyQuotaCycle),
-                unavailable: model.weeklyQuotaPeriodText(for: account.name) == nil
             )
         }
         .padding(.horizontal, 14)
@@ -505,7 +506,8 @@ struct DashboardView: View {
         title: String,
         subtitle: String? = nil,
         totals: TokenUsageTotals,
-        unavailable: Bool = false
+        unavailable: Bool = false,
+        projection: WeeklyQuotaProjection? = nil
     ) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(alignment: .firstTextBaseline) {
@@ -520,6 +522,17 @@ struct DashboardView: View {
                 Text(model.text("输入 %@ · 缓存 %@", compactTokens(totals.input), compactTokens(totals.cachedInput)))
                 Text(model.text("输出 %@ · 推理 %@", compactTokens(totals.output), compactTokens(totals.reasoningOutput)))
                 Text(tablePriceText(totals)).foregroundStyle(.secondary)
+                if let projection {
+                    Text(model.text(
+                        projection.isPartial ? "周额度预测 $%.2f*（依据 %d%% 用量）" : "周额度预测 $%.2f（依据 %d%% 用量）",
+                        projection.estimatedFullUSD,
+                        projection.observedUsedPercent
+                    ))
+                    .foregroundStyle(.secondary)
+                } else if title == "周额度周期" {
+                    Text(model.text("周额度预测：暂无数据"))
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .font(.caption)

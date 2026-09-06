@@ -260,6 +260,25 @@ func checkTokenUsageTracking() throws {
 }
 try checkTokenUsageTracking()
 
+func checkWeeklyQuotaProjection() throws {
+    let files = FileManager.default
+    let root = files.temporaryDirectory.appendingPathComponent("weekly-projection-check-\(UUID().uuidString)")
+    let store = WeeklyQuotaProjectionStore(url: root.appendingPathComponent("projection.json"))
+    try store.begin(account: "alpha", resetAt: "2026-09-12T10:00:00Z", remainingPercent: 90, estimatedUSD: 10, unpricedEvents: 0)
+    let first = try store.finish(account: "alpha", resetAt: "2026-09-12T10:00:00Z", remainingPercent: 80, estimatedUSD: 20, unpricedEvents: 0)
+    precondition(first?.estimatedFullUSD == 100)
+    precondition(first?.observedUsedPercent == 10)
+    try store.begin(account: "alpha", resetAt: "2026-09-12T10:00:00Z", remainingPercent: 80, estimatedUSD: 20, unpricedEvents: 0)
+    let second = try store.finish(account: "alpha", resetAt: "2026-09-12T10:00:00Z", remainingPercent: 75, estimatedUSD: 30, unpricedEvents: 1)
+    precondition(second?.observedUsedPercent == 15)
+    precondition(second?.observedUSD == 20)
+    precondition(second?.isPartial == true)
+    try store.begin(account: "alpha", resetAt: "2026-09-19T10:00:00Z", remainingPercent: 100, estimatedUSD: 0, unpricedEvents: 0)
+    precondition(store.projections()["alpha"] == nil, "新周期必须清除旧预测")
+    print("周额度预测检查通过：按切入切出差值估算、累计同周期样本、跨周期清零。")
+}
+try checkWeeklyQuotaProjection()
+
 func checkSwitchHistory() throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("switch-history-check-\(UUID().uuidString)")
     let store = SwitchHistoryStore(url: root.appendingPathComponent("history.json"))

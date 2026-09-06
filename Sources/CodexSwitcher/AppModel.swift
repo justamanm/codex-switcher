@@ -33,6 +33,7 @@ final class AppModel: ObservableObject {
     @Published var editingAlias = ""
     @Published var removingAccount: String?
     @Published private(set) var tokenEvents: [TokenUsageEvent] = []
+    @Published private(set) var weeklyQuotaProjections: [String: WeeklyQuotaProjection] = [:]
     @Published private(set) var switchHistory: [SwitchHistoryRecord] = []
     @Published private(set) var isCodexCLIInstalled = false
     @Published private(set) var isDetectingCodexCLI = true
@@ -59,6 +60,9 @@ final class AppModel: ObservableObject {
     )
     private lazy var switchHistoryStore = SwitchHistoryStore(
         url: codexDirectory.appendingPathComponent("codex_switcher_switch_history.json")
+    )
+    private lazy var weeklyQuotaProjectionStore = WeeklyQuotaProjectionStore(
+        url: codexDirectory.appendingPathComponent("codex_switcher_weekly_quota_projection.json")
     )
 
     private enum StartupRecovery {
@@ -124,6 +128,7 @@ final class AppModel: ObservableObject {
         let recovery = recoverInterruptedAddition()
         loadFromDisk()
         switchHistory = switchHistoryStore.load()
+        weeklyQuotaProjections = weeklyQuotaProjectionStore.projections()
         refreshTokenUsage()
         configureAutomaticRefresh()
         switch recovery {
@@ -498,11 +503,16 @@ final class AppModel: ObservableObject {
         Task {
             do {
                 refreshTokenUsage()
+                let sourceRefresh = await runScript(["refresh", sourceAccount])
+                loadFromDisk()
+                refreshTokenUsage()
+                if sourceRefresh.code == 0 { finishWeeklyQuotaProjection(for: sourceAccount) }
                 try await closeChatGPT(at: installedChatGPTURL)
                 status = text("正在切换到 %@…", account)
                 let result = await runScript(["switch", account])
                 loadFromDisk()
                 guard result.code == 0 else {
+                    if sourceRefresh.code == 0 { beginWeeklyQuotaProjection(for: sourceAccount) }
                     recordSwitch(from: sourceAccount, to: account, result: .failure, message: result.output)
                     lastError = result.output
                     status = text("切换失败")
@@ -514,6 +524,10 @@ final class AppModel: ObservableObject {
                 recordSwitch(from: sourceAccount, to: account, result: .success, timestamp: switchedAt)
                 try tokenTracker.recordAccountChange(account: account, at: switchedAt)
                 refreshTokenUsage()
+                let targetRefresh = await runScript(["refresh", account])
+                loadFromDisk()
+                refreshTokenUsage()
+                if targetRefresh.code == 0 { beginWeeklyQuotaProjection(for: account) }
                 if let installedChatGPTURL {
                     do {
                         try await NSWorkspace.shared.openApplication(at: installedChatGPTURL, configuration: NSWorkspace.OpenConfiguration())
@@ -605,6 +619,34 @@ final class AppModel: ObservableObject {
             .hour(.twoDigits(amPM: .omitted)).minute(.twoDigits)
             .locale(appLanguage.locale)
         return text("开始 %@\n重置 %@", start.formatted(format), reset.formatted(format))
+    }
+
+    private func beginWeeklyQuotaProjection(for account: String) {
+        guard let usage = accounts.first(where: { $0.name == account }),
+              let resetAt = usage.weeklyResetAt else { return }
+        let totals = tokenTotals(for: account, period: .weeklyQuotaCycle)
+        try? weeklyQuotaProjectionStore.begin(
+            account: account,
+            resetAt: resetAt,
+            remainingPercent: usage.weeklyRemaining,
+            estimatedUSD: totals.estimatedUSD,
+            unpricedEvents: totals.unpricedEvents
+        )
+        weeklyQuotaProjections = weeklyQuotaProjectionStore.projections()
+    }
+
+    private func finishWeeklyQuotaProjection(for account: String) {
+        guard let usage = accounts.first(where: { $0.name == account }),
+              let resetAt = usage.weeklyResetAt else { return }
+        let totals = tokenTotals(for: account, period: .weeklyQuotaCycle)
+        _ = try? weeklyQuotaProjectionStore.finish(
+            account: account,
+            resetAt: resetAt,
+            remainingPercent: usage.weeklyRemaining,
+            estimatedUSD: totals.estimatedUSD,
+            unpricedEvents: totals.unpricedEvents
+        )
+        weeklyQuotaProjections = weeklyQuotaProjectionStore.projections()
     }
 
     func configureAutomaticRefresh() {
