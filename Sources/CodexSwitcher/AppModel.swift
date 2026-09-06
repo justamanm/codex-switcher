@@ -512,7 +512,9 @@ final class AppModel: ObservableObject {
                     pendingSwitchAccount = nil
                     return
                 }
-                recordSwitch(from: sourceAccount, to: account, result: .success)
+                let switchedAt = Date()
+                recordSwitch(from: sourceAccount, to: account, result: .success, timestamp: switchedAt)
+                try tokenTracker.recordAccountChange(account: account, at: switchedAt)
                 refreshTokenUsage()
                 if let installedChatGPTURL {
                     do {
@@ -545,10 +547,20 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private func recordSwitch(from: String, to: String, result: SwitchResult, message: String = "") {
+    private func recordSwitch(
+        from: String,
+        to: String,
+        result: SwitchResult,
+        message: String = "",
+        timestamp: Date = Date()
+    ) {
         do {
             switchHistory = try switchHistoryStore.append(SwitchHistoryRecord(
-                fromAccount: from, toAccount: to, result: result, message: message
+                timestamp: timestamp,
+                fromAccount: from,
+                toAccount: to,
+                result: result,
+                message: message
             ))
         } catch {
             lastError = text("无法保存切换记录：%@", error.localizedDescription)

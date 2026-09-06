@@ -60,21 +60,29 @@ public enum ModelPricing {
 }
 
 public final class TokenUsageTracker: @unchecked Sendable {
+    private struct AccountActivation: Codable, Equatable {
+        let account: String
+        let timestamp: Date
+    }
+
     private struct State: Codable {
         var activeAccount: String
         var cursors: [String: UInt64]
         var models: [String: String]
         var events: [TokenUsageEvent]
+        var timeline: [AccountActivation]?
     }
 
     private let roots: [URL]
     private let stateURL: URL
+    private let now: @Sendable () -> Date
     private let decoder = JSONDecoder()
     private let encoder = JSONEncoder()
 
-    public init(roots: [URL], stateURL: URL) {
+    public init(roots: [URL], stateURL: URL, now: @escaping @Sendable () -> Date = Date.init) {
         self.roots = roots
         self.stateURL = stateURL
+        self.now = now
         decoder.dateDecodingStrategy = .iso8601
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -83,15 +91,25 @@ public final class TokenUsageTracker: @unchecked Sendable {
     public func scan(account: String) throws -> [TokenUsageEvent] {
         let files = sessionFiles()
         guard var state = try loadState() else {
-            try save(State(activeAccount: account, cursors: endOffsets(files), models: [:], events: []))
+            try save(State(
+                activeAccount: account,
+                cursors: endOffsets(files),
+                models: [:],
+                events: [],
+                timeline: [AccountActivation(account: account, timestamp: now())]
+            ))
             return []
         }
-        guard state.activeAccount == account else {
+
+        if state.timeline == nil {
+            try backupLegacyState()
             state.activeAccount = account
             state.cursors = endOffsets(files)
             state.models = [:]
+            state.events = []
+            state.timeline = [AccountActivation(account: account, timestamp: now())]
             try save(state)
-            return state.events
+            return []
         }
 
         for file in files {
@@ -118,8 +136,30 @@ public final class TokenUsageTracker: @unchecked Sendable {
             state.cursors[key] = start + UInt64(complete.count)
         }
         repairUnknownModels(in: &state, files: files)
+        if state.timeline?.last?.account != account {
+            appendActivation(account: account, timestamp: now(), state: &state)
+        }
+        state.activeAccount = account
         try save(state)
         return state.events
+    }
+
+    public func recordAccountChange(account: String, at timestamp: Date = Date()) throws {
+        let files = sessionFiles()
+        guard var state = try loadState(), state.timeline != nil else {
+            if FileManager.default.fileExists(atPath: stateURL.path) { try backupLegacyState() }
+            try save(State(
+                activeAccount: account,
+                cursors: endOffsets(files),
+                models: [:],
+                events: [],
+                timeline: [AccountActivation(account: account, timestamp: timestamp)]
+            ))
+            return
+        }
+        appendActivation(account: account, timestamp: timestamp, state: &state)
+        state.activeAccount = account
+        try save(state)
     }
 
     public func totals(events: [TokenUsageEvent], account: String, from start: Date, to end: Date = Date()) -> TokenUsageTotals {
@@ -152,8 +192,13 @@ public final class TokenUsageTracker: @unchecked Sendable {
               let timestampText = object["timestamp"] as? String,
               let timestamp = parseTimestamp(timestampText) else { return }
         func number(_ key: String) -> Int { (usage[key] as? NSNumber)?.intValue ?? 0 }
+        guard let account = state.timeline?
+            .filter({ $0.timestamp <= timestamp })
+            .max(by: { $0.timestamp < $1.timestamp })?
+            .account
+        else { return }
         state.events.append(TokenUsageEvent(
-            id: "\(fileKey):\(offset)", account: state.activeAccount, timestamp: timestamp,
+            id: "\(fileKey):\(offset)", account: account, timestamp: timestamp,
             model: state.models[fileKey] ?? "unknown", input: number("input_tokens"),
             cachedInput: number("cached_input_tokens"), cacheWriteInput: number("cache_write_input_tokens"),
             output: number("output_tokens"), reasoningOutput: number("reasoning_output_tokens")
@@ -225,6 +270,20 @@ public final class TokenUsageTracker: @unchecked Sendable {
     private func loadState() throws -> State? {
         guard FileManager.default.fileExists(atPath: stateURL.path) else { return nil }
         return try decoder.decode(State.self, from: Data(contentsOf: stateURL))
+    }
+
+    private func appendActivation(account: String, timestamp: Date, state: inout State) {
+        var timeline = state.timeline ?? []
+        if timeline.last?.account == account { return }
+        timeline.append(AccountActivation(account: account, timestamp: timestamp))
+        timeline.sort { $0.timestamp < $1.timestamp }
+        state.timeline = timeline
+    }
+
+    private func backupLegacyState() throws {
+        let backupURL = stateURL.deletingPathExtension().appendingPathExtension("pre-timeline-backup.json")
+        guard !FileManager.default.fileExists(atPath: backupURL.path) else { return }
+        try FileManager.default.copyItem(at: stateURL, to: backupURL)
     }
 
     private func save(_ state: State) throws {

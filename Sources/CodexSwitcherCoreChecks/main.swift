@@ -183,19 +183,24 @@ func checkTokenUsageTracking() throws {
     let sessions = root.appendingPathComponent("sessions")
     try files.createDirectory(at: sessions, withIntermediateDirectories: true)
     let log = sessions.appendingPathComponent("rollout.jsonl")
-    func record(_ input: Int) -> String {
+    func record(_ input: Int, timestamp: String = "2026-09-06T09:00:01.123Z") -> String {
         """
         {"timestamp":"2026-09-06T09:00:00Z","type":"turn_context","payload":{"model":"gpt-5.6-sol"}}
-        {"timestamp":"2026-09-06T09:00:01.123Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":\(input),"cached_input_tokens":40,"cache_write_input_tokens":0,"output_tokens":20,"reasoning_output_tokens":5,"total_tokens":\(input + 20)}}}}
+        {"timestamp":"\(timestamp)","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":\(input),"cached_input_tokens":40,"cache_write_input_tokens":0,"output_tokens":20,"reasoning_output_tokens":5,"total_tokens":\(input + 20)}}}}
         """ + "\n"
     }
-    func tokenRecord(_ input: Int) -> String {
+    func tokenRecord(_ input: Int, timestamp: String = "2026-09-06T09:00:01.123Z") -> String {
         """
-        {"timestamp":"2026-09-06T09:00:01.123Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":\(input),"cached_input_tokens":40,"cache_write_input_tokens":0,"output_tokens":20,"reasoning_output_tokens":5,"total_tokens":\(input + 20)}}}}
+        {"timestamp":"\(timestamp)","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":\(input),"cached_input_tokens":40,"cache_write_input_tokens":0,"output_tokens":20,"reasoning_output_tokens":5,"total_tokens":\(input + 20)}}}}
         """ + "\n"
     }
     try record(100).write(to: log, atomically: true, encoding: .utf8)
-    let tracker = TokenUsageTracker(roots: [sessions], stateURL: root.appendingPathComponent("state.json"))
+    let initialTime = ISO8601DateFormatter().date(from: "2026-09-06T09:00:00Z")!
+    let tracker = TokenUsageTracker(
+        roots: [sessions],
+        stateURL: root.appendingPathComponent("state.json"),
+        now: { initialTime }
+    )
     let initial = try tracker.scan(account: "alpha")
     precondition(initial.isEmpty, "首次启用不应导入历史记录")
     let handle = try FileHandle(forWritingTo: log)
@@ -207,13 +212,51 @@ func checkTokenUsageTracking() throws {
     precondition(events[0].model == "gpt-5.6-sol", "没有从启用位置之前恢复模型名称")
     let repeated = try tracker.scan(account: "alpha")
     precondition(repeated.count == 1, "重复扫描不应重复计数")
+
+    let switchTime = ISO8601DateFormatter().date(from: "2026-09-06T09:10:00Z")!
+    try tracker.recordAccountChange(account: "beta", at: switchTime)
+    let secondHandle = try FileHandle(forWritingTo: log)
+    try secondHandle.seekToEnd()
+    try secondHandle.write(contentsOf: Data(tokenRecord(300, timestamp: "2026-09-06T09:09:59Z").utf8))
+    try secondHandle.write(contentsOf: Data(tokenRecord(400, timestamp: "2026-09-06T09:10:01Z").utf8))
+    try secondHandle.close()
+    let switched = try tracker.scan(account: "beta")
+    precondition(switched.count == 3, "跨账号扫描遗漏 Token 记录")
+    precondition(switched[1].account == "alpha" && switched[1].input == 300, "切换前 Token 没有归入旧账号")
+    precondition(switched[2].account == "beta" && switched[2].input == 400, "切换后 Token 没有归入新账号")
+
+    let legacyStateURL = root.appendingPathComponent("legacy-state.json")
+    let legacyState = """
+    {
+      "activeAccount": "alpha",
+      "cursors": {},
+      "events": [{
+        "account": "alpha",
+        "cacheWriteInput": 0,
+        "cachedInput": 0,
+        "id": "legacy:1",
+        "input": 999,
+        "model": "gpt-5.6-sol",
+        "output": 1,
+        "reasoningOutput": 0,
+        "timestamp": "2026-09-06T09:00:00Z"
+      }],
+      "models": {}
+    }
+    """
+    try legacyState.write(to: legacyStateURL, atomically: true, encoding: .utf8)
+    let legacyTracker = TokenUsageTracker(roots: [sessions], stateURL: legacyStateURL, now: { initialTime })
+    let migratedEvents = try legacyTracker.scan(account: "alpha")
+    precondition(migratedEvents.isEmpty, "旧版错误统计没有在迁移时清空")
+    let legacyBackup = legacyStateURL.deletingPathExtension().appendingPathExtension("pre-timeline-backup.json")
+    precondition(files.fileExists(atPath: legacyBackup.path), "旧版统计迁移前没有创建备份")
     let priceEvent = TokenUsageEvent(
         id: "price", account: "alpha", timestamp: Date(), model: "gpt-5.6-sol",
         input: 1_000_000, cachedInput: 500_000, cacheWriteInput: 0,
         output: 100_000, reasoningOutput: 20_000
     )
     precondition(abs((ModelPricing.estimatedUSD(for: priceEvent) ?? 0) - 4.2) < 0.0001, "缓存价格计算错误")
-    print("Token 增量统计检查通过：忽略历史、读取新增、避免重复、分别计算缓存价格。")
+    print("Token 增量统计检查通过：忽略历史、读取新增、避免重复、按切换时间归属账号、备份旧统计、分别计算缓存价格。")
 }
 try checkTokenUsageTracking()
 
