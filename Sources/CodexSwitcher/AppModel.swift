@@ -318,16 +318,7 @@ final class AppModel: ObservableObject {
             return
         }
         lastError = nil
-        switch clientAvailability.accountLoginMethod {
-        case .chatGPT where isCodexCLIInstalled:
-            addAccountStage = text("请先保存工作并退出所有正在运行的 Codex CLI。继续后会关闭 ChatGPT，并使用 ChatGPT 登录新账号。")
-        case .chatGPT:
-            addAccountStage = text("继续后会关闭 ChatGPT，并使用 ChatGPT 登录新账号。")
-        case .codexCLI:
-            addAccountStage = text("请先保存工作并退出所有正在运行的 Codex CLI。继续后，请在终端运行 codex login。")
-        case .unavailable:
-            return
-        }
+        addAccountStage = text("准备添加新账号")
         showingAddAccount = true
     }
 

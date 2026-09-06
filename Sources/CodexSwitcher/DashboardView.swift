@@ -379,8 +379,8 @@ struct DashboardView: View {
                 .font(.system(size: 40)).foregroundStyle(accent)
             Text(model.text(model.isWaitingForLogin ? "等待新账号登录" : "增加 Codex 账号"))
                 .font(.title2.bold())
-            Text(model.addAccountStage).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             if model.isWaitingForLogin {
+                Text(model.addAccountStage).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 ProgressView().controlSize(.large)
                 Text(model.text(model.addAccountUsesChatGPT
                     ? "取消后会关闭 ChatGPT 应用并恢复原账号。"
@@ -396,11 +396,10 @@ struct DashboardView: View {
                         Label(model.text("先保存并退出所有正在运行的 Codex CLI"), systemImage: "terminal")
                     }
                     if model.isChatGPTInstalled {
-                        Label(model.text("继续后会关闭 ChatGPT 并保存当前账号"), systemImage: "arrow.down.doc")
+                        Label(model.text("继续后会关闭 ChatGPT，保留当前登录账号，只需在 ChatGPT 完成登录即可"), systemImage: "arrow.down.doc")
                     } else {
                         Label(model.text("继续后会保存当前账号，并等待你运行 codex login"), systemImage: "arrow.down.doc")
                     }
-                    Label(model.text("重新登录后会自动识别用户名和邮箱"), systemImage: "person.text.rectangle")
                 }
                 .font(.callout)
             }
