@@ -264,7 +264,8 @@ func checkWeeklyQuotaProjection() throws {
     let files = FileManager.default
     let root = files.temporaryDirectory.appendingPathComponent("weekly-projection-check-\(UUID().uuidString)")
     let store = WeeklyQuotaProjectionStore(url: root.appendingPathComponent("projection.json"))
-    try store.begin(account: "alpha", resetAt: "2026-09-12T10:00:00Z", remainingPercent: 90, estimatedUSD: 10, unpricedEvents: 0)
+    try store.beginIfNeeded(account: "alpha", resetAt: "2026-09-12T10:00:00Z", remainingPercent: 90, estimatedUSD: 10, unpricedEvents: 0)
+    try store.beginIfNeeded(account: "alpha", resetAt: "2026-09-12T10:00:00Z", remainingPercent: 85, estimatedUSD: 15, unpricedEvents: 0)
     let unchanged = try store.observe(account: "alpha", resetAt: "2026-09-12T10:00:00Z", remainingPercent: 90, estimatedUSD: 15, unpricedEvents: 0)
     precondition(unchanged == nil, "额度未下降时不应过早预测")
     let first = try store.observe(account: "alpha", resetAt: "2026-09-12T10:00:00Z", remainingPercent: 80, estimatedUSD: 20, unpricedEvents: 0)

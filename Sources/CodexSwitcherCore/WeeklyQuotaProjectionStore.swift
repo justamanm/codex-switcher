@@ -63,6 +63,24 @@ public final class WeeklyQuotaProjectionStore: @unchecked Sendable {
         try save(states)
     }
 
+    public func beginIfNeeded(
+        account: String,
+        resetAt: String,
+        remainingPercent: Int,
+        estimatedUSD: Double,
+        unpricedEvents: Int
+    ) throws {
+        let state = loadStates()[account]
+        guard state?.resetAt != resetAt || state?.sample == nil else { return }
+        try begin(
+            account: account,
+            resetAt: resetAt,
+            remainingPercent: remainingPercent,
+            estimatedUSD: estimatedUSD,
+            unpricedEvents: unpricedEvents
+        )
+    }
+
     @discardableResult
     public func finish(
         account: String,

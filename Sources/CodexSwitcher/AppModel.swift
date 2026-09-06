@@ -130,6 +130,7 @@ final class AppModel: ObservableObject {
         switchHistory = switchHistoryStore.load()
         weeklyQuotaProjections = weeklyQuotaProjectionStore.projections()
         refreshTokenUsage()
+        beginWeeklyQuotaProjectionIfNeeded(for: currentName)
         configureAutomaticRefresh()
         switch recovery {
         case .none:
@@ -254,6 +255,7 @@ final class AppModel: ObservableObject {
         guard !isAddingAccount, !isSwitching else { return }
         guard !isRefreshing else { return }
         isRefreshing = true
+        beginWeeklyQuotaProjectionIfNeeded(for: currentName)
         status = text("正在查询账号限额…")
         lastError = nil
         Task {
@@ -276,6 +278,7 @@ final class AppModel: ObservableObject {
         guard !isAddingAccount, !isSwitching else { return }
         guard !refreshingAccounts.contains(account) else { return }
         refreshingAccounts.insert(account)
+        beginWeeklyQuotaProjectionIfNeeded(for: account)
         lastError = nil
         Task {
             let result = await runScript(["refresh", account])
@@ -505,6 +508,7 @@ final class AppModel: ObservableObject {
         Task {
             do {
                 refreshTokenUsage()
+                beginWeeklyQuotaProjectionIfNeeded(for: sourceAccount)
                 let sourceRefresh = await runScript(["refresh", sourceAccount])
                 loadFromDisk()
                 refreshTokenUsage()
@@ -628,6 +632,21 @@ final class AppModel: ObservableObject {
               let resetAt = usage.weeklyResetAt else { return }
         let totals = tokenTotals(for: account, period: .weeklyQuotaCycle)
         try? weeklyQuotaProjectionStore.begin(
+            account: account,
+            resetAt: resetAt,
+            remainingPercent: usage.weeklyRemaining,
+            estimatedUSD: totals.estimatedUSD,
+            unpricedEvents: totals.unpricedEvents
+        )
+        weeklyQuotaProjections = weeklyQuotaProjectionStore.projections()
+    }
+
+    private func beginWeeklyQuotaProjectionIfNeeded(for account: String) {
+        guard currentType == "account", currentName == account,
+              let usage = accounts.first(where: { $0.name == account }),
+              let resetAt = usage.weeklyResetAt else { return }
+        let totals = tokenTotals(for: account, period: .weeklyQuotaCycle)
+        try? weeklyQuotaProjectionStore.beginIfNeeded(
             account: account,
             resetAt: resetAt,
             remainingPercent: usage.weeklyRemaining,
