@@ -23,15 +23,8 @@ jobs:
       - name: Run core checks
         run: swift run CodexSwitcherCoreChecks
 
-      - name: Build universal DMG
-        env:
-          CODEX_SWITCHER_UNIVERSAL: "1"
+      - name: Build DMG
         run: ./scripts/build-dmg.sh
-
-      - name: Verify universal binary
-        run: |
-          file "dist/Codex Switcher.app/Contents/MacOS/CodexSwitcher" | grep -q "arm64"
-          file "dist/Codex Switcher.app/Contents/MacOS/CodexSwitcher" | grep -q "x86_64"
 
       - name: Verify DMG contents
         run: |

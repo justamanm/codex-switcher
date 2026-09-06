@@ -20,13 +20,8 @@ sips -z 512 512 "$root_dir/support/AppIcon.png" --out "$root_dir/support/AppIcon
 sips -z 512 512 "$root_dir/support/AppIcon.png" --out "$root_dir/support/AppIcon.iconset/icon_512x512.png" >/dev/null
 sips -z 1024 1024 "$root_dir/support/AppIcon.png" --out "$root_dir/support/AppIcon.iconset/icon_512x512@2x.png" >/dev/null
 node "$root_dir/scripts/make-icns.mjs"
-if [[ "${CODEX_SWITCHER_UNIVERSAL:-0}" == "1" ]]; then
-    swift build --disable-sandbox -c release --arch arm64 --arch x86_64
-    binary="$root_dir/.build/apple/Products/Release/CodexSwitcher"
-else
-    swift build --disable-sandbox -c release
-    binary="$root_dir/.build/release/CodexSwitcher"
-fi
+swift build --disable-sandbox -c release
+binary="$root_dir/.build/release/CodexSwitcher"
 mkdir -p "$staging_app/Contents/MacOS"
 mkdir -p "$staging_app/Contents/Resources"
 install -m 755 "$binary" "$staging_app/Contents/MacOS/CodexSwitcher"
