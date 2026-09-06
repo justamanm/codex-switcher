@@ -4,7 +4,7 @@
 </h1>
 
 <p align="center">
-  English · <a href="README_zh.md">中文</a>
+  v0.1 · English · <a href="README_zh.md">中文</a>
 </p>
 
 ## Overview
@@ -15,7 +15,7 @@ The app shows your current account, remaining usage, and reset times on a single
 
 ## Download
 
-[Download the latest DMG](https://github.com/justamanm/codex-switcher/releases/download/latest/Codex-Switcher.dmg), open it, and drag Codex Switcher into the Applications folder.
+[Download v0.1](https://github.com/justamanm/codex-switcher/releases/download/v0.1/Codex-Switcher.dmg), open it, and drag Codex Switcher into the Applications folder. Development builds are also available from the [rolling latest release](https://github.com/justamanm/codex-switcher/releases/tag/latest).
 
 The current build uses an ad hoc signature and has not been notarized by Apple. On first launch, control-click the app and choose **Open**. If macOS still blocks it, open **System Settings → Privacy & Security** and choose **Open Anyway**.
 

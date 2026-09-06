@@ -4,7 +4,7 @@
 </h1>
 
 <p align="center">
-  <a href="README.md">English</a> · 中文
+  v0.1 · <a href="README.md">English</a> · 中文
 </p>
 
 ## 概述
@@ -15,7 +15,7 @@ Codex Switcher 是一款面向 macOS 的多账号管理工具，帮助经常使�
 
 ## 下载与安装
 
-[下载最新版 DMG](https://github.com/justamanm/codex-switcher/releases/download/latest/Codex-Switcher.dmg)，打开后将 Codex Switcher 拖入“应用程序”目录。
+[下载 v0.1](https://github.com/justamanm/codex-switcher/releases/download/v0.1/Codex-Switcher.dmg)，打开后将 Codex Switcher 拖入“应用程序”目录。开发中的最新构建仍可从 [latest Release](https://github.com/justamanm/codex-switcher/releases/tag/latest) 获取。
 
 当前版本使用临时签名，尚未通过 Apple 公证。首次运行时，请按住 Control 点击应用并选择“打开”。如果 macOS 仍然阻止运行，请前往“系统设置 → 隐私与安全性”，选择“仍要打开”。
 

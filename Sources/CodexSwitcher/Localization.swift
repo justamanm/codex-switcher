@@ -1,5 +1,13 @@
 import Foundation
 
+enum AppVersion {
+    static var current: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1"
+    }
+
+    static var display: String { "v\(current)" }
+}
+
 enum AppLanguage: String, CaseIterable, Identifiable {
     case system
     case chinese
@@ -32,6 +40,7 @@ enum AppLocalization {
         "准备就绪": "Ready",
         "准备添加新账号": "Ready to add an account",
         "设置": "Settings",
+        "版本": "Version",
         "完成": "Done",
         "语言": "Language",
         "跟随系统": "Follow System",

@@ -318,6 +318,14 @@ struct DashboardView: View {
             }
             Text(model.text("自动查询默认每 1 分钟执行；可自定义秒或分钟。全量查询时账号之间间隔 1 秒，单账号查询立即执行。"))
                 .font(.caption).foregroundStyle(.secondary)
+            Divider()
+            HStack {
+                Text(model.text("版本"))
+                Spacer()
+                Text(AppVersion.display)
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
         .padding(24)
         .frame(width: 520)

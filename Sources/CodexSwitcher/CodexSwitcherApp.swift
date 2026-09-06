@@ -29,9 +29,11 @@ struct CodexSwitcherApp: App {
                     }
                     .pickerStyle(.segmented)
                 }
+                LabeledContent(model.text("版本"), value: AppVersion.display)
             }
             .padding(20).frame(width: 360)
             .environment(\.locale, model.appLanguage.locale)
         }
     }
+
 }
