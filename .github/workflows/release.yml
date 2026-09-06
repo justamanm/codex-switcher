@@ -23,7 +23,12 @@ jobs:
       - name: Run core checks
         run: swift run CodexSwitcherCoreChecks
 
-      - name: Build app
+      - name: Build release executable
+        run: swift build --disable-sandbox -c release
+
+      - name: Bundle app
+        env:
+          CODEX_SWITCHER_SKIP_SWIFT_BUILD: "1"
         run: ./scripts/build-app.sh
 
       - name: Build DMG
