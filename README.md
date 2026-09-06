@@ -1,6 +1,5 @@
 <h1 align="center">
-  <img src="docs/images/app-icon.png" width="72" alt="Codex Switcher icon" align="middle">
-  Codex Switcher
+  <img src="docs/images/readme-header.svg" width="600" alt="Codex Switcher">
 </h1>
 
 <p align="center">
