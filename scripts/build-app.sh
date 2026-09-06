@@ -5,6 +5,7 @@ export CLANG_MODULE_CACHE_PATH="${CLANG_MODULE_CACHE_PATH:-/private/tmp/codex-sw
 
 root_dir="${0:A:h:h}"
 app_dir="$root_dir/dist/Codex Switcher.app"
+mkdir -p "$root_dir/dist"
 staging_root="$(mktemp -d "$root_dir/dist/.codex-switcher-build.XXXXXX")"
 staging_app="$staging_root/Codex Switcher.app"
 
