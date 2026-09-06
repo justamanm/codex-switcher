@@ -363,31 +363,38 @@ struct DashboardView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Divider()
-            ScrollView {
-                VStack(spacing: 12) {
-                    ForEach(model.rankedAccounts) { account in
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                Text(model.displayName(for: account.name)).font(.headline)
-                                Spacer()
-                                Text(account.creditBalance.map { model.text("Credit 余额：$%.2f", $0) } ?? model.text("Credit 余额：未启用"))
-                                    .font(.caption).foregroundStyle(.secondary)
-                            }
-                            HStack(spacing: 10) {
-                                tokenPeriodCard(title: "当前 5 小时", totals: model.tokenTotals(for: account.name, period: .fiveHours))
-                                tokenPeriodCard(title: "今天", totals: model.tokenTotals(for: account.name, period: .today))
-                                tokenPeriodCard(title: "当前周", totals: model.tokenTotals(for: account.name, period: .currentWeek))
-                            }
-                        }
-                        .padding(14)
-                        .background(Color.secondary.opacity(0.07), in: RoundedRectangle(cornerRadius: 12))
-                    }
+            Table(tokenUsageRows) {
+                TableColumn(model.text("账号")) { row in
+                    Text(row.account).fontWeight(.semibold)
                 }
-                .padding(24)
+                .width(min: 100, ideal: 130)
+                TableColumn(model.text("周期")) { row in Text(row.period) }
+                    .width(min: 72, ideal: 86)
+                TableColumn(model.text("总计")) { row in Text(compactTokens(row.totals.total)) }
+                    .width(min: 58, ideal: 68)
+                TableColumn(model.text("输入 / 缓存")) { row in
+                    Text("\(compactTokens(row.totals.input)) / \(compactTokens(row.totals.cachedInput))")
+                }
+                .width(min: 104, ideal: 120)
+                TableColumn(model.text("输出 / 推理")) { row in
+                    Text("\(compactTokens(row.totals.output)) / \(compactTokens(row.totals.reasoningOutput))")
+                }
+                .width(min: 94, ideal: 108)
+                TableColumn(model.text("价格")) { row in
+                    Text(tablePriceText(row.totals)).foregroundStyle(.secondary)
+                }
+                .width(min: 72, ideal: 82)
+                TableColumn(model.text("Credit 余额")) { row in
+                    Text(row.creditBalance.map { String(format: "$%.2f", $0) } ?? model.text("未启用"))
+                        .foregroundStyle(.secondary)
+                }
+                .width(min: 82, ideal: 100)
             }
+            .tableStyle(.inset(alternatesRowBackgrounds: true))
+            .padding(16)
             Divider()
             HStack {
-                Text(model.text("价格为 OpenAI API 等值估算，使用美元。"))
+                Text(model.text("价格为 OpenAI API 等值估算，使用美元；* 表示仅部分用量可估算。"))
                     .font(.caption).foregroundStyle(.secondary)
                 Spacer()
             }
@@ -396,24 +403,45 @@ struct DashboardView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func tokenPeriodCard(title: String, totals: TokenUsageTotals) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(model.text(title)).font(.callout.bold())
-            Text(model.text("总计 %@", compactTokens(totals.total))).font(.headline)
-            Text(model.text("输入 %@ · 缓存 %@", compactTokens(totals.input), compactTokens(totals.cachedInput)))
-            Text(model.text("输出 %@ · 推理 %@", compactTokens(totals.output), compactTokens(totals.reasoningOutput)))
-            Text(priceText(totals))
-                .foregroundStyle(.secondary)
-        }
-        .font(.caption)
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.background, in: RoundedRectangle(cornerRadius: 9))
+    private struct TokenUsageRow: Identifiable {
+        let id: String
+        let account: String
+        let period: String
+        let totals: TokenUsageTotals
+        let creditBalance: Double?
     }
 
-    private func priceText(_ totals: TokenUsageTotals) -> String {
+    private var tokenUsageRows: [TokenUsageRow] {
+        model.rankedAccounts.flatMap { account in
+            [
+                TokenUsageRow(
+                    id: "\(account.name)-five-hours",
+                    account: model.displayName(for: account.name),
+                    period: model.text("当前 5 小时"),
+                    totals: model.tokenTotals(for: account.name, period: .fiveHours),
+                    creditBalance: account.creditBalance
+                ),
+                TokenUsageRow(
+                    id: "\(account.name)-today",
+                    account: model.displayName(for: account.name),
+                    period: model.text("今天"),
+                    totals: model.tokenTotals(for: account.name, period: .today),
+                    creditBalance: account.creditBalance
+                ),
+                TokenUsageRow(
+                    id: "\(account.name)-week",
+                    account: model.displayName(for: account.name),
+                    period: model.text("当前周"),
+                    totals: model.tokenTotals(for: account.name, period: .currentWeek),
+                    creditBalance: account.creditBalance
+                )
+            ]
+        }
+    }
+
+    private func tablePriceText(_ totals: TokenUsageTotals) -> String {
         if totals.unpricedEvents == 0 { return String(format: "$%.4f", totals.estimatedUSD) }
-        if totals.estimatedUSD > 0 { return model.text("$%.4f（部分可估算）", totals.estimatedUSD) }
+        if totals.estimatedUSD > 0 { return String(format: "$%.4f*", totals.estimatedUSD) }
         return model.text("暂无法估算")
     }
 
