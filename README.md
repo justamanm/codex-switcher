@@ -49,13 +49,12 @@ It is useful when you:
 
 Open the app to see the current account, the recommended next account, and the usage status of every account. You can follow the recommendation or select another account from the list.
 
-When adding an account, the app guides you through signing in and returns to account management when the process is complete. If you cancel, it attempts to restore the account that was active before you started.
+When adding an account, the app uses ChatGPT when it is installed. If only Codex CLI is available, it asks you to run `codex login` in Terminal and detects the new account after sign-in. If you cancel, it restores the account that was active before you started.
 
 ## Usage notes
 
-- Save your work and exit any running Codex CLI sessions before adding an account.
-- ChatGPT must be installed to add an account. If it is missing, Codex Switcher stops before changing any account files.
-- Existing accounts can still be switched without ChatGPT installed; automatic reopening is skipped.
+- Adding an account requires either ChatGPT or Codex CLI. If neither is installed, Codex Switcher stops before changing any account files.
+- When Codex CLI is installed, exit its running sessions before switching or adding an account, then reopen it when prompted.
+- Existing accounts can still be switched without ChatGPT installed; automatic ChatGPT reopening is skipped.
 - Keep Codex Switcher open while adding an account so it can complete sign-in or restore the previous account after cancellation.
-- After switching accounts, fully quit and reopen Codex for the new account to take effect.
 - Account information and credentials stay on your Mac. The app does not display identity tokens.

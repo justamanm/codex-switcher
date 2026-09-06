@@ -3,6 +3,14 @@ import XCTest
 @testable import CodexSwitcherCore
 
 final class CodexSwitcherCoreTests: XCTestCase {
+    func testSelectsAvailableAccountLoginMethod() {
+        XCTAssertEqual(ClientAvailability(hasChatGPT: true, hasCodexCLI: true).accountLoginMethod, .chatGPT)
+        XCTAssertEqual(ClientAvailability(hasChatGPT: true, hasCodexCLI: false).accountLoginMethod, .chatGPT)
+        XCTAssertEqual(ClientAvailability(hasChatGPT: false, hasCodexCLI: true).accountLoginMethod, .codexCLI)
+        XCTAssertEqual(ClientAvailability(hasChatGPT: false, hasCodexCLI: false).accountLoginMethod, .unavailable)
+        XCTAssertFalse(ClientAvailability(hasChatGPT: false, hasCodexCLI: false).canAddAccount)
+    }
+
     func testDecodesAndRecommendsNearestEligibleAccount() throws {
         let data = """
     {

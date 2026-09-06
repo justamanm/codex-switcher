@@ -32,6 +32,9 @@ final class AppModel: ObservableObject {
     @Published var editingAccount: String?
     @Published var editingAlias = ""
     @Published var removingAccount: String?
+    @Published private(set) var isCodexCLIInstalled = false
+    @Published private(set) var isDetectingCodexCLI = true
+    @Published private(set) var addAccountUsesChatGPT = false
     @Published var appLanguage: AppLanguage {
         didSet { UserDefaults.standard.set(appLanguage.rawValue, forKey: "appLanguage") }
     }
@@ -44,6 +47,7 @@ final class AppModel: ObservableObject {
     private var automaticTask: Task<Void, Never>?
     private var loginWatchTask: Task<Void, Never>?
     private var loginSession: AccountLoginSession?
+    private var loginRequiresCLIRestart = false
     private var noticeTask: Task<Void, Never>?
     private var resetRefreshTasks: [String: Task<Void, Never>] = [:]
     private var triggeredResetKeys: Set<String> = []
@@ -66,6 +70,23 @@ final class AppModel: ObservableObject {
     }
 
     var isChatGPTInstalled: Bool { chatGPTApplicationURL != nil }
+
+    var clientAvailability: ClientAvailability {
+        ClientAvailability(hasChatGPT: isChatGPTInstalled, hasCodexCLI: isCodexCLIInstalled)
+    }
+
+    var switchConfirmationMessage: String {
+        switch (isChatGPTInstalled, isCodexCLIInstalled) {
+        case (true, true):
+            return text("请先保存工作并退出 Codex CLI。确认后会关闭 ChatGPT、切换账号并重新打开 ChatGPT；完成后请重新打开 Codex CLI。")
+        case (true, false):
+            return text("请先保存 ChatGPT 中的内容。确认后会关闭 ChatGPT，切换账号，再自动重新打开 ChatGPT。")
+        case (false, true):
+            return text("请先保存工作并退出 Codex CLI。确认后会切换账号；完成后请重新打开 Codex CLI。")
+        case (false, false):
+            return text("未检测到 ChatGPT。账号仍会正常切换，但不会自动打开 ChatGPT。")
+        }
+    }
 
     private var chatGPTApplicationURL: URL? {
         let fileManager = FileManager.default
@@ -103,6 +124,7 @@ final class AppModel: ObservableObject {
     }
 
     func start() {
+        detectCodexCLI()
         let recovery = recoverInterruptedAddition()
         loadFromDisk()
         configureAutomaticRefresh()
@@ -113,6 +135,51 @@ final class AppModel: ObservableObject {
             showNotice(message)
         case .error(let message):
             lastError = message
+        }
+    }
+
+    private func detectCodexCLI() {
+        isDetectingCodexCLI = true
+        let detection = Task.detached(priority: .utility) { Self.detectCodexCLISynchronously() }
+        Task { [weak self] in
+            let installed = await detection.value
+            guard let self else { return }
+            isCodexCLIInstalled = installed
+            isDetectingCodexCLI = false
+        }
+    }
+
+    nonisolated private static func detectCodexCLISynchronously() -> Bool {
+        let fileManager = FileManager.default
+        let home = fileManager.homeDirectoryForCurrentUser
+        var directories = ProcessInfo.processInfo.environment["PATH"]?
+            .split(separator: ":").map { URL(fileURLWithPath: String($0)) } ?? []
+        directories.append(contentsOf: [
+            URL(fileURLWithPath: "/opt/homebrew/bin"),
+            URL(fileURLWithPath: "/usr/local/bin"),
+            home.appendingPathComponent(".local/bin"),
+            home.appendingPathComponent(".npm-global/bin"),
+            home.appendingPathComponent(".volta/bin"),
+            home.appendingPathComponent(".asdf/shims"),
+            home.appendingPathComponent(".local/share/mise/shims"),
+            home.appendingPathComponent("Library/pnpm"),
+            home.appendingPathComponent(".bun/bin")
+        ])
+        if directories.contains(where: { fileManager.isExecutableFile(atPath: $0.appendingPathComponent("codex").path) }) {
+            return true
+        }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        process.arguments = ["-lic", "command -v codex >/dev/null 2>&1"]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus == 0
+        } catch {
+            return false
         }
     }
 
@@ -251,42 +318,62 @@ final class AppModel: ObservableObject {
             showNotice(text("请等待当前操作完成。"))
             return
         }
+        guard !isDetectingCodexCLI else {
+            showNotice(text("正在检测 Codex CLI，请稍候。"))
+            return
+        }
         guard currentType == "account", !currentName.isEmpty else {
             lastError = text("添加账号前必须先切换到一个普通账号。")
             return
         }
-        guard isChatGPTInstalled else {
-            lastError = text("新增账号需要先安装 ChatGPT。未修改任何账号文件。")
+        guard clientAvailability.canAddAccount else {
+            lastError = text("新增账号需要先安装 ChatGPT 或 Codex CLI。未修改任何账号文件。")
             return
         }
         lastError = nil
-        addAccountStage = text("请先保存工作并退出所有正在运行的 Codex CLI。继续后，请在 ChatGPT 中登录新账号。")
+        switch clientAvailability.accountLoginMethod {
+        case .chatGPT where isCodexCLIInstalled:
+            addAccountStage = text("请先保存工作并退出所有正在运行的 Codex CLI。继续后会关闭 ChatGPT，并使用 ChatGPT 登录新账号。")
+        case .chatGPT:
+            addAccountStage = text("继续后会关闭 ChatGPT，并使用 ChatGPT 登录新账号。")
+        case .codexCLI:
+            addAccountStage = text("请先保存工作并退出所有正在运行的 Codex CLI。继续后，请在终端运行 codex login。")
+        case .unavailable:
+            return
+        }
         showingAddAccount = true
     }
 
     func startAddAccount() {
         guard !isAddingAccount, !isRefreshing, refreshingAccounts.isEmpty,
               pendingSwitchAccount == nil, currentType == "account", !currentName.isEmpty else { return }
-        guard let chatGPTURL = chatGPTApplicationURL else {
+        guard !isDetectingCodexCLI, clientAvailability.canAddAccount else {
             showingAddAccount = false
-            lastError = text("新增账号需要先安装 ChatGPT。未修改任何账号文件。")
+            lastError = text("新增账号需要先安装 ChatGPT 或 Codex CLI。未修改任何账号文件。")
             return
         }
+        let chatGPTURL = chatGPTApplicationURL
         let archivedName = currentName
         isAddingAccount = true
+        addAccountUsesChatGPT = chatGPTURL != nil
+        loginRequiresCLIRestart = isCodexCLIInstalled
         lastError = nil
         automaticTask?.cancel()
         resetRefreshTasks.values.forEach { $0.cancel() }
-        addAccountStage = text("正在关闭 ChatGPT…")
+        addAccountStage = chatGPTURL == nil ? text("正在准备 Codex CLI 登录…") : text("正在关闭 ChatGPT…")
         loginWatchTask = Task { [weak self] in
             guard let self else { return }
             do {
                 try await closeChatGPT(at: chatGPTURL)
                 try Task.checkCancellation()
                 loginSession = try AccountLoginSession(directory: codexDirectory, account: archivedName)
-                addAccountStage = text("请在 ChatGPT 中登录新账号。登录数据只保存在本机；本应用不会上传或展示登录凭据。")
                 isWaitingForLogin = true
-                try await NSWorkspace.shared.openApplication(at: chatGPTURL, configuration: NSWorkspace.OpenConfiguration())
+                if let chatGPTURL {
+                    addAccountStage = text("请在 ChatGPT 中登录新账号。登录数据只保存在本机；本应用不会上传或展示登录凭据。")
+                    try await NSWorkspace.shared.openApplication(at: chatGPTURL, configuration: NSWorkspace.OpenConfiguration())
+                } else {
+                    addAccountStage = text("请打开终端运行 codex login，并在浏览器中完成登录。完成后请返回此处等待识别。")
+                }
                 try Task.checkCancellation()
                 try await watchForNewLogin()
             } catch {
@@ -305,7 +392,7 @@ final class AppModel: ObservableObject {
             return
         }
         isCancellingLogin = true
-        addAccountStage = text("正在关闭登录窗口并恢复原账号…")
+        addAccountStage = text(addAccountUsesChatGPT ? "正在关闭登录窗口并恢复原账号…" : "正在恢复原账号…")
         let previousTask = loginWatchTask
         previousTask?.cancel()
         Task {
@@ -340,14 +427,19 @@ final class AppModel: ObservableObject {
             loginSession = nil
             isAddingAccount = false
             isWaitingForLogin = false
+            addAccountUsesChatGPT = false
             showingAddAccount = false
             loadFromDisk()
             configureAutomaticRefresh()
+            let shouldRestartCLI = loginRequiresCLIRestart
+            loginRequiresCLIRestart = false
             if let failure {
-                lastError = text("添加失败，原账号已保留：%@", failure)
+                lastError = shouldRestartCLI
+                    ? text("添加失败，原账号已保留：%@ 请重新打开 Codex CLI。", failure)
+                    : text("添加失败，原账号已保留：%@", failure)
             } else {
                 lastError = nil
-                showNotice(text("已取消添加账号"))
+                showNotice(text(shouldRestartCLI ? "已取消添加账号，请重新打开 Codex CLI" : "已取消添加账号"))
             }
         } catch {
             // 保留恢复对象和备份，允许用户退出登录应用后再次取消。
@@ -395,6 +487,10 @@ final class AppModel: ObservableObject {
 
     func requestSwitch(to account: String) {
         guard !isAddingAccount, !isSwitching, !isRefreshing, refreshingAccounts.isEmpty else { return }
+        guard !isDetectingCodexCLI else {
+            showNotice(text("正在检测 Codex CLI，请稍候。"))
+            return
+        }
         pendingSwitchAccount = account
         showingSwitchConfirmation = true
     }
@@ -423,12 +519,21 @@ final class AppModel: ObservableObject {
                 if let installedChatGPTURL {
                     do {
                         try await NSWorkspace.shared.openApplication(at: installedChatGPTURL, configuration: NSWorkspace.OpenConfiguration())
-                        status = text("已切换到 %@，已打开 ChatGPT", account)
-                        showNotice(text("账号已切换"))
+                        if isCodexCLIInstalled {
+                            status = text("已切换到 %@，已打开 ChatGPT；请重新打开 Codex CLI", account)
+                            showNotice(text("账号已切换，请重新打开 Codex CLI"))
+                        } else {
+                            status = text("已切换到 %@，已打开 ChatGPT", account)
+                            showNotice(text("账号已切换"))
+                        }
                     } catch {
-                        status = text("账号已切换")
+                        status = text(isCodexCLIInstalled ? "账号已切换，请重新打开 Codex CLI" : "账号已切换")
                         lastError = text("已切换账号，但无法打开 ChatGPT：%@", error.localizedDescription)
+                        if isCodexCLIInstalled { showNotice(text("账号已切换，请重新打开 Codex CLI")) }
                     }
+                } else if isCodexCLIInstalled {
+                    status = text("已切换到 %@，请重新打开 Codex CLI", account)
+                    showNotice(text("账号已切换，请重新打开 Codex CLI"))
                 } else {
                     status = text("已切换到 %@，未检测到 ChatGPT，已跳过自动打开", account)
                     showNotice(text("账号已切换"))
@@ -520,10 +625,16 @@ final class AppModel: ObservableObject {
                 loginSession = nil
                 isAddingAccount = false
                 isWaitingForLogin = false
+                addAccountUsesChatGPT = false
                 showingAddAccount = false
                 loadFromDisk()
                 configureAutomaticRefresh()
-                showNotice(text("已添加 %@", displayName(for: internalName)))
+                let shouldRestartCLI = loginRequiresCLIRestart
+                loginRequiresCLIRestart = false
+                showNotice(text(
+                    shouldRestartCLI ? "已添加 %@，请重新打开 Codex CLI" : "已添加 %@",
+                    displayName(for: internalName)
+                ))
                 refresh(account: internalName)
                 return
             }

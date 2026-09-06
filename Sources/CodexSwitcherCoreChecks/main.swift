@@ -1,6 +1,13 @@
 import CodexSwitcherCore
 import Foundation
 
+guard ClientAvailability(hasChatGPT: true, hasCodexCLI: true).accountLoginMethod == .chatGPT,
+      ClientAvailability(hasChatGPT: true, hasCodexCLI: false).accountLoginMethod == .chatGPT,
+      ClientAvailability(hasChatGPT: false, hasCodexCLI: true).accountLoginMethod == .codexCLI,
+      !ClientAvailability(hasChatGPT: false, hasCodexCLI: false).canAddAccount else {
+    fatalError("客户端安装状态判断失败")
+}
+
 let data = """
 {
   "current": {"five_hour_remaining": 90, "five_hour_reset": "2030-01-01 09:00", "weekly_remaining": 90, "weekly_reset": "1.2", "reset_cards": 0, "noted_at": "2026-09-05T10:00:00+08:00"},

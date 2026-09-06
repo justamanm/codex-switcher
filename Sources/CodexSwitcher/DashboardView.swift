@@ -59,9 +59,7 @@ struct DashboardView: View {
             Button(model.text("切换到 %@", model.pendingSwitchAccount ?? "")) { model.confirmSwitch() }
             Button(model.text("取消"), role: .cancel) { model.pendingSwitchAccount = nil }
         } message: {
-            Text(model.text(model.isChatGPTInstalled
-                ? "请先保存 ChatGPT 中的内容。确认后会关闭 ChatGPT，切换账号，再自动重新打开 ChatGPT。"
-                : "未检测到 ChatGPT。账号仍会正常切换，但不会自动打开 ChatGPT。"))
+            Text(model.switchConfirmationMessage)
         }
         .alert(
             model.text("移除账号"),
@@ -349,12 +347,24 @@ struct DashboardView: View {
             Text(model.addAccountStage).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             if model.isWaitingForLogin {
                 ProgressView().controlSize(.large)
-                Text(model.text("取消后会关闭 ChatGPT 应用。"))
+                Text(model.text(model.addAccountUsesChatGPT
+                    ? "取消后会关闭 ChatGPT 应用并恢复原账号。"
+                    : "取消后会恢复原账号。"))
                     .font(.caption).foregroundStyle(.secondary)
+                if model.isCodexCLIInstalled {
+                    Text(model.text("完成或取消后，请重新打开 Codex CLI。"))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             } else {
                 VStack(alignment: .leading, spacing: 8) {
-                    Label(model.text("先保存并退出所有正在运行的 Codex CLI"), systemImage: "terminal")
-                    Label(model.text("继续后会关闭 ChatGPT 并保存当前账号"), systemImage: "arrow.down.doc")
+                    if model.isCodexCLIInstalled {
+                        Label(model.text("先保存并退出所有正在运行的 Codex CLI"), systemImage: "terminal")
+                    }
+                    if model.isChatGPTInstalled {
+                        Label(model.text("继续后会关闭 ChatGPT 并保存当前账号"), systemImage: "arrow.down.doc")
+                    } else {
+                        Label(model.text("继续后会保存当前账号，并等待你运行 codex login"), systemImage: "arrow.down.doc")
+                    }
                     Label(model.text("重新登录后会自动识别用户名和邮箱"), systemImage: "person.text.rectangle")
                 }
                 .font(.callout)
@@ -365,7 +375,7 @@ struct DashboardView: View {
                     .disabled(model.isCancellingLogin)
                     .keyboardShortcut(.cancelAction)
                 if !model.isAddingAccount {
-                    Button(model.text("退出 ChatGPT 并继续")) { model.startAddAccount() }
+                    Button(model.text(model.isChatGPTInstalled ? "退出 ChatGPT 并继续" : "保存当前账号并继续")) { model.startAddAccount() }
                         .buttonStyle(.borderedProminent)
                 }
             }
