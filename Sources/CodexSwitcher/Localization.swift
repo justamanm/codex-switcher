@@ -195,7 +195,7 @@ enum AppLocalization {
         "输出 / 推理": "Output / reasoning",
         "Credit 余额": "Credit balance",
         "未启用": "Not enabled",
-        "价格为 OpenAI API 等值估算，使用美元；* 表示仅部分用量可估算。": "Prices are OpenAI API-equivalent estimates in USD; * means only part of the usage can be estimated.",
+        "总计包含缓存 Token。价格为 OpenAI API 等值估算，使用美元；* 表示仅部分用量可估算。": "Totals include cached tokens. Prices are OpenAI API-equivalent estimates in USD; * means only part of the usage can be estimated.",
         "中转站": "Hub",
         "推荐": "Recommended",
         "暂无账号数据": "No account data",

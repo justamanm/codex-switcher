@@ -373,7 +373,7 @@ struct DashboardView: View {
             }
             Divider()
             HStack {
-                Text(model.text("价格为 OpenAI API 等值估算，使用美元；* 表示仅部分用量可估算。"))
+                Text(model.text("总计包含缓存 Token。价格为 OpenAI API 等值估算，使用美元；* 表示仅部分用量可估算。"))
                     .font(.caption).foregroundStyle(.secondary)
                 Spacer()
             }
@@ -383,11 +383,20 @@ struct DashboardView: View {
     }
 
     private func tokenUsageAccountRow(_ account: AccountUsage) -> some View {
-        HStack(spacing: 0) {
+        let isCurrent = model.currentType == "account" && model.currentName == account.name
+        return HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 7) {
-                Text(model.displayName(for: account.name))
-                    .font(.headline)
-                    .lineLimit(1)
+                HStack(spacing: 7) {
+                    Text(model.displayName(for: account.name))
+                        .font(.headline)
+                        .lineLimit(1)
+                    if isCurrent {
+                        Text(model.text("当前使用"))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(accent)
+                    }
+                }
+                .foregroundStyle(isCurrent ? accent : Color.primary)
                 Text(account.creditBalance.map { model.text("Credit 余额：$%.2f", $0) } ?? model.text("Credit 余额：未启用"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -413,12 +422,11 @@ struct DashboardView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 11)
-        .background(.background, in: RoundedRectangle(cornerRadius: 12))
+        .background(isCurrent ? accent.opacity(0.07) : Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
         .overlay {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(
-                    model.currentType == "account" && model.currentName == account.name
-                        ? accent.opacity(0.45) : Color.secondary.opacity(0.15),
+                    isCurrent ? accent.opacity(0.45) : Color.secondary.opacity(0.15),
                     lineWidth: 1
                 )
         }
