@@ -1,9 +1,10 @@
 #!/bin/zsh
 set -euo pipefail
 
+export CLANG_MODULE_CACHE_PATH="${CLANG_MODULE_CACHE_PATH:-/private/tmp/codex-switcher-module-cache}"
+
 root_dir="${0:A:h:h}"
 app_dir="$root_dir/dist/Codex Switcher.app"
-binary="$root_dir/.build/release/CodexSwitcher"
 staging_root="$(mktemp -d "$root_dir/dist/.codex-switcher-build.XXXXXX")"
 staging_app="$staging_root/Codex Switcher.app"
 
@@ -19,7 +20,13 @@ sips -z 512 512 "$root_dir/support/AppIcon.png" --out "$root_dir/support/AppIcon
 sips -z 512 512 "$root_dir/support/AppIcon.png" --out "$root_dir/support/AppIcon.iconset/icon_512x512.png" >/dev/null
 sips -z 1024 1024 "$root_dir/support/AppIcon.png" --out "$root_dir/support/AppIcon.iconset/icon_512x512@2x.png" >/dev/null
 node "$root_dir/scripts/make-icns.mjs"
-swift build --disable-sandbox -c release
+if [[ "${CODEX_SWITCHER_UNIVERSAL:-0}" == "1" ]]; then
+    swift build --disable-sandbox -c release --arch arm64 --arch x86_64
+    binary="$root_dir/.build/apple/Products/Release/CodexSwitcher"
+else
+    swift build --disable-sandbox -c release
+    binary="$root_dir/.build/release/CodexSwitcher"
+fi
 mkdir -p "$staging_app/Contents/MacOS"
 mkdir -p "$staging_app/Contents/Resources"
 install -m 755 "$binary" "$staging_app/Contents/MacOS/CodexSwitcher"
